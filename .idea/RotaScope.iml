@@ -7,6 +7,9 @@
       <sourceFolder url="file://$MODULE_DIR$/rotascope-server/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/rotascope-core/target" />
       <excludeFolder url="file://$MODULE_DIR$/rotascope-server/target" />
+      <excludeFolder url="file://$MODULE_DIR$/rotascope_app/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/rotascope_app/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/rotascope_app/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
