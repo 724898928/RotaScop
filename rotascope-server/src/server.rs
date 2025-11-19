@@ -1,15 +1,18 @@
 use crate::capture::ScreenCapturer;
 use crate::virtual_display::VirtualDisplayManager;
 use anyhow::Result;
+use futures::{SinkExt, StreamExt};
+use rotascope_core::{
+    ClientMessage, ServerMessage, SwitchDirection, deserialize_message, serialize_message,
+};
 use std::sync::Arc;
+use std::io::ErrorKind;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Mutex, RwLock};
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 use tokio_util::bytes;
-use rotascope_core::{deserialize_message, serialize_message, ClientMessage, ServerMessage, SwitchDirection};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::codec::{FramedRead, FramedWrite};
-use futures::{SinkExt, StreamExt};
 pub struct MultiDisplayServer {
     capturer: Arc<ScreenCapturer>,
     virtual_displays: Arc<VirtualDisplayManager>,
@@ -20,7 +23,11 @@ pub struct MultiDisplayServer {
 impl MultiDisplayServer {
     pub fn new(display_count: u8) -> Result<Self> {
         let capturer = Arc::new(ScreenCapturer::new()?);
-        let virtual_displays = Arc::new(VirtualDisplayManager::new(display_count)?);
+        let virtual_displays = Arc::new(VirtualDisplayManager::new(vec![
+            (0, 1920, 1080),
+            (1, 1920, 1080),
+            (2, 2560, 1440),
+        ])?);
         let current_display = Arc::new(RwLock::new(0));
         let clients = Arc::new(Mutex::new(Vec::new()));
 
@@ -42,13 +49,8 @@ impl MultiDisplayServer {
         let listener = TcpListener::bind(addr).await?;
         log::info!("Server listening on {}", addr);
 
-        let server_arc = Arc::new(self);
-
-        // 启动屏幕捕获和流媒体任务
-        let stream_arc = server_arc.clone();
-        // 覆盖之前对 `self` 的引用，使用 owned clone 放入 Arc，使其可以安全地移动到后台任务中
+        // 使用 owned clone 放入 Arc，使其可以安全地移动到后台任务中
         let server_arc = Arc::new(self.clone());
-
         // 启动屏幕捕获和流媒体任务
         let stream_arc = server_arc.clone();
         tokio::spawn(async move {
@@ -68,11 +70,14 @@ impl MultiDisplayServer {
         }
     }
 
-    async fn handle_client(&self, stream: TcpStream) -> Result<()> {
+    async fn handle_client(&self, mut stream: TcpStream) -> Result<()> {
+        // try to reduce write-side aborts by disabling Nagle
+        let _ = stream.set_nodelay(true);
         // 使用自定义配置的 LengthDelimitedCodec，增大最大帧大小以允许发送较大的视频帧
         let read_codec = LengthDelimitedCodec::builder()
             .length_field_length(4)
-            .max_frame_length(100 * 1024 * 1024) // 50 MB
+            // 根据项目帧大小需要调整，这里设置为 200MB，确保 client 端也使用相同的长度字段与大小限制
+            .max_frame_length(200 * 1024 * 1024) // 200 MB
             .new_codec();
         let write_codec = read_codec.clone();
 
@@ -130,7 +135,17 @@ impl MultiDisplayServer {
                 };
 
                 if let Err(e) = writer.send(data).await {
-                    log::error!("Error sending to client: {}", e);
+                    // 对于常见的连接中断，降低日志级别并尝试优雅关闭 writer
+                    match e.kind() {
+                        ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => {
+                            log::info!("Client connection closed by peer: {}", e);
+                        }
+                        _ => {
+                            log::error!("Error sending to client: {}", e);
+                        }
+                    }
+                    // 尝试关闭 writer（吞掉可能的错误），然后退出发送任务以便上层清理客户端
+                    let _ = writer.close().await;
                     break;
                 }
             }
@@ -214,10 +229,18 @@ impl MultiDisplayServer {
                     };
 
                     // 发送给所有连接的客户端
-                    let clients = self.clients.lock().await;
-                    for client in clients.iter() {
+                    // 先克隆出当前的 Sender 列表并释放锁，避免在发送时持有锁
+                    let clients_vec = {
+                        let clients = self.clients.lock().await;
+                        clients.clone()
+                    };
+
+                    for client in clients_vec.into_iter() {
                         if let Err(e) = client.send(message.clone()).await {
-                            log::debug!("Failed to send to client: {}", e);
+                            log::debug!("Failed to send to client (will cleanup): {}", e);
+                            // 清理已关闭的客户端
+                            let mut clients = self.clients.lock().await;
+                            clients.retain(|c| !c.is_closed());
                         }
                     }
                 }

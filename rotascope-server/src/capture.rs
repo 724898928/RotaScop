@@ -1,7 +1,9 @@
 use anyhow::Result;
-use image::{ImageBuffer, Rgba};
-use std::time::Duration;
 use image::codecs::jpeg::JpegEncoder;
+use image::{DynamicImage, ImageBuffer, Rgba};
+use screenshots::Screen;
+
+use crate::virtual_display::{VirtualDisplay, VirtualDisplayManager};
 
 pub struct FrameData {
     pub width: u32,
@@ -27,6 +29,23 @@ pub struct ScreenCapturer {
 impl ScreenCapturer {
     pub fn new() -> Result<Self> {
         Ok(Self {})
+    }
+    pub fn capture_to_display(display: &mut VirtualDisplay) {
+        // Example: capture main screen
+        let screen = Screen::from_point(0, 0).unwrap();
+        let image = screen.capture().unwrap();
+
+        // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
+        display.framebuffer =  image.rgba().to_vec();
+    }
+
+    pub fn capture_data(&self) -> Result<Vec<u8>> {
+        // Example: capture main screen
+        let screen = Screen::from_point(0, 0).unwrap();
+        let image = screen.capture().unwrap();
+
+        // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
+        Ok(image.rgba().to_vec())
     }
 
     pub async fn capture_display(&self, display_index: u8) -> Result<FrameData> {
@@ -55,9 +74,16 @@ impl ScreenCapturer {
         self.add_display_text(&mut img, display_index);
 
         // 编码为JPEG
-        let mut jpeg_data = Vec::new();
-            JpegEncoder::new(&mut jpeg_data)
-            .encode(&img, width, height, image::ColorType::Rgba8)?;
+        let mut jpeg_data = self.capture_data()?;
+        // 将 RGBA ImageBuffer 转换为 RGB（去掉 alpha），因为 JPEG 不支持 Rgba8
+        let rgb_img: image::RgbImage = DynamicImage::ImageRgba8(img).to_rgb8();
+        let raw = rgb_img.into_raw();
+        JpegEncoder::new(&mut jpeg_data).encode(
+            &raw,
+            width,
+            height,
+            image::ColorType::Rgb8.into(),
+        )?;
 
         Ok(FrameData {
             width,

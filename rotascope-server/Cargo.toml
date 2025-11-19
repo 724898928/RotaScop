@@ -6,17 +6,21 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-bincode = "1.3"
+bincode = "2"
 anyhow = "1.0"
-image = "0.24"
-x11rb = "0.10" # Linux 屏幕捕获
-windows = "0.48" # Windows API
-env_logger = "0.10"
+image = "0.25"
+x11rb = "0.13" # Linux 屏幕捕获
+windows = "0.62" # Windows API
+env_logger = "0.11"
 log = "0.4"
 rotascope-core = {path = "../rotascope-core"}
 tokio-util = { version = "0.7.17", features = ["codec"] }
 futures = "0.3"
-[profile.release]
+screenshots = "0.7"
 
+[profile.release]
+strip = true
+lto = true
+panic = "abort"
 opt-level = "z"
 codegen-units = 1

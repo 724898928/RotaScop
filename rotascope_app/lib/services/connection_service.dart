@@ -1,11 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected, error }
 
 class ConnectionService extends ChangeNotifier {
-  WebSocketChannel? _channel;
+  Socket? _socket;
   ConnectionStatus _status = ConnectionStatus.disconnected;
   String _serverAddress = '192.168.31.169:8080';
   
@@ -38,15 +39,14 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _channel = WebSocketChannel.connect(
-        Uri.parse('ws://$_serverAddress'),
-      );
+      // 解析 address -> host:port
+      final parts = _serverAddress.split(':');
+      final host = parts[0];
+      final port = int.tryParse(parts.length > 1 ? parts[1] : '8080') ?? 8080;
 
-      _channel!.stream.listen(
-        _handleMessage,
-        onError: _handleError,
-        onDone: _handleDisconnect,
-      );
+      _socket = await Socket.connect(host, port);
+      // 启动读取并按 4 字节长度解析帧
+      _startReading(_socket!);
 
       _status = ConnectionStatus.connected;
       notifyListeners();
@@ -58,15 +58,16 @@ class ConnectionService extends ChangeNotifier {
   }
 
   void disconnect() {
-    _channel?.sink.close();
-    _channel = null;
+    _socket?.destroy();
+    _socket = null;
     _status = ConnectionStatus.disconnected;
     notifyListeners();
   }
 
   void _handleMessage(dynamic message) {
     try {
-      final data = jsonDecode(utf8.decode(message));
+      // 保持兼容：message 已经是 Map<String, dynamic> 由 _startReading 解码后传入
+      final data = message is Map<String, dynamic> ? message : jsonDecode(utf8.decode(message));
       
       if (data['type'] == 'VideoFrame') {
         _handleVideoFrame(data);
@@ -78,6 +79,38 @@ class ConnectionService extends ChangeNotifier {
         print('Error handling message: $e');
       }
     }
+  }
+  
+  void _startReading(Socket socket) {
+    // 累积缓冲区
+    final buffer = BytesBuilder(copy: false);
+    socket.listen((Uint8List data) {
+      buffer.add(data);
+      var buf = buffer.takeBytes();
+      var offset = 0;
+      while (buf.lengthInBytes - offset >= 4) {
+        final header = ByteData.sublistView(buf, offset, offset + 4);
+        final len = header.getUint32(0); // big-endian 默认
+        if (buf.lengthInBytes - offset - 4 < len) {
+          // 不够一帧，回写剩余并等待更多数据
+          buffer.add(buf.sublist(offset));
+          break;
+        }
+        final payload = buf.sublist(offset + 4, offset + 4 + len);
+        // 假设 payload 是 JSON 文本（utf8）。若为二进制，请按需处理。
+        try {
+          final decoded = jsonDecode(utf8.decode(payload));
+          _handleMessage(decoded);
+        } catch (e) {
+          if (kDebugMode) print('Failed to decode frame payload: $e');
+        }
+        offset += 4 + len;
+        if (offset == buf.lengthInBytes) {
+          // 正好消费完
+          break;
+        }
+      }
+    }, onError: _handleError, onDone: _handleDisconnect, cancelOnError: true);
   }
 
   void _handleVideoFrame(Map<String, dynamic> data) {
@@ -123,8 +156,8 @@ class ConnectionService extends ChangeNotifier {
       'rotation_y': rotationY,
       'rotation_z': rotationZ,
     };
-    
-    _channel?.sink.add(jsonEncode(message));
+    final payload = utf8.encode(jsonEncode(message));
+    _sendWithLengthPrefix(payload);
   }
 
   void switchDisplay(String direction) {
@@ -134,8 +167,16 @@ class ConnectionService extends ChangeNotifier {
       'type': 'SwitchDisplay',
       'direction': direction,
     };
-    
-    _channel?.sink.add(jsonEncode(message));
+    final payload = utf8.encode(jsonEncode(message));
+    _sendWithLengthPrefix(payload);
+  }
+
+  void _sendWithLengthPrefix(List<int> payload) {
+    if (_socket == null) return;
+    final header = ByteData(4);
+    header.setUint32(0, payload.length); // big-endian
+    _socket!.add(header.buffer.asUint8List());
+    _socket!.add(payload);
   }
 
   @override

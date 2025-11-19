@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
 
     log::info!("Starting Multi-Display PC Server...");
 
-    let server = Arc::new(MultiDisplayServer::new(1)?); // 3个虚拟显示器
+    let server = Arc::new(MultiDisplayServer::new(3)?); // 3个虚拟显示器
 
     // 启动虚拟显示器
     server.start_virtual_displays().await?;
