@@ -1,172 +1,187 @@
+use actix::{
+    Actor, ActorContext, AsyncContext, Handler, Message, Recipient, StreamHandler,
+    ActorFutureExt, ContextFutureSpawner, WrapFuture,
+};
+use actix_web_actors::ws;
+use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
+use parking_lot::RwLock;
+use std::collections::HashMap;
+use std::sync::Arc;
+use anyhow::Result;
 use crate::capture::ScreenCapturer;
 use crate::virtual_display::VirtualDisplayManager;
-use anyhow::Result;
-use futures::{SinkExt, StreamExt};
-use rotascope_core::{
-    ClientMessage, ServerMessage, SwitchDirection, deserialize_message, serialize_message,
-};
-use std::sync::Arc;
-use std::io::ErrorKind;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Mutex, RwLock};
-use tokio::time::{Duration, interval};
-use tokio_util::bytes;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tokio_util::codec::{FramedRead, FramedWrite};
+
+// 客户端消息
+#[derive(Deserialize, Debug)]
+pub enum ClientMessage {
+    SensorData {
+        rotation_x: f32,
+        rotation_y: f32,
+        rotation_z: f32,
+    },
+    SwitchDisplay {
+        direction: SwitchDirection,
+    },
+    Heartbeat,
+}
+
+#[derive(Deserialize, Debug)]
+pub enum SwitchDirection {
+    Next,
+    Previous,
+}
+
+// 服务器消息
+#[derive(Serialize, Debug, Clone)]
+pub enum ServerMessage {
+    VideoFrame {
+        display_index: u8,
+        width: u32,
+        height: u32,
+        data: Vec<u8>, // JPEG encoded
+        timestamp: u64,
+    },
+    DisplayConfig {
+        total_displays: u8,
+        current_display: u8,
+        resolutions: Vec<(u32, u32)>,
+    },
+    Heartbeat,
+    Error {
+        message: String,
+    },
+}
+
+// WebSocket 会话消息
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct BroadcastMessage(pub ServerMessage);
+
+// 主服务器结构
 pub struct MultiDisplayServer {
-    capturer: Arc<ScreenCapturer>,
-    virtual_displays: Arc<VirtualDisplayManager>,
-    current_display: Arc<RwLock<u8>>,
-    clients: Arc<Mutex<Vec<tokio::sync::mpsc::Sender<ServerMessage>>>>,
+    pub capturer: Arc<ScreenCapturer>,
+    pub virtual_displays: Arc<VirtualDisplayManager>,
+    pub current_display: Arc<RwLock<u8>>,
+    pub clients: Arc<RwLock<HashMap<usize, Recipient<BroadcastMessage>>>>,
+    pub next_client_id: Arc<RwLock<usize>>,
 }
 
 impl MultiDisplayServer {
-    pub fn new(display_count: u8) -> Result<Self> {
+    pub async fn new(display_count: u8) -> Result<Self> {
         let capturer = Arc::new(ScreenCapturer::new()?);
-        let virtual_displays = Arc::new(VirtualDisplayManager::new(vec![
-            (0, 1920, 1080),
-            (1, 1920, 1080),
-            (2, 2560, 1440),
-        ])?);
+        let virtual_displays = Arc::new(VirtualDisplayManager::new(display_count)?);
+
+        // 初始化虚拟显示器
+        virtual_displays.initialize().await?;
+
         let current_display = Arc::new(RwLock::new(0));
-        let clients = Arc::new(Mutex::new(Vec::new()));
+        let clients = Arc::new(RwLock::new(HashMap::new()));
+        let next_client_id = Arc::new(RwLock::new(0));
 
         Ok(Self {
             capturer,
             virtual_displays,
             current_display,
             clients,
+            next_client_id,
         })
     }
 
-    pub async fn start_virtual_displays(&self) -> Result<()> {
-        self.virtual_displays.initialize().await?;
-        log::info!("Virtual displays initialized");
-        Ok(())
-    }
 
-    pub async fn start_server(&self, addr: &str) -> Result<()> {
-        let listener = TcpListener::bind(addr).await?;
-        log::info!("Server listening on {}", addr);
 
-        // 使用 owned clone 放入 Arc，使其可以安全地移动到后台任务中
-        let server_arc = Arc::new(self.clone());
-        // 启动屏幕捕获和流媒体任务
-        let stream_arc = server_arc.clone();
-        tokio::spawn(async move {
-            stream_arc.start_streaming().await;
-        });
+    // 在 streaming 循环中添加性能监控
+    pub async fn start_streaming(&self) -> Result<()> {
+        use tokio::time::interval;
+        let mut interval = interval(Duration::from_millis(100));
+
+        let mut frame_count = 0;
+        let mut total_size = 0;
+        let mut total_capture_time = Duration::from_secs(0);
+        let mut last_log = Instant::now();
 
         loop {
-            let (socket, addr) = listener.accept().await?;
-            log::info!("New client connected: {}", addr);
+            interval.tick().await;
 
-            let client_arc = server_arc.clone();
-            tokio::spawn(async move {
-                if let Err(e) = client_arc.handle_client(socket).await {
-                    log::error!("Client handling error: {}", e);
+            let capture_start = Instant::now();
+            let current_display = *self.current_display.read();
+
+            match self.capturer.capture_display(current_display).await {
+                Ok(frame_data) => {
+                    let capture_time = capture_start.elapsed();
+
+                    frame_count += 1;
+                    total_size += frame_data.jpeg_data.len();
+                    total_capture_time += capture_time;
+
+                    let message = ServerMessage::VideoFrame {
+                        display_index: current_display,
+                        width: frame_data.width,
+                        height: frame_data.height,
+                        data: frame_data.jpeg_data,
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as u64,
+                    };
+
+                    // 定期记录性能统计
+                    if last_log.elapsed() > Duration::from_secs(5) {
+                        let avg_size = total_size / frame_count;
+                        let avg_capture_time = total_capture_time / frame_count as u32;
+                        log::info!("Streaming stats: {} frames, avg {} bytes/frame, avg capture time: {:?}",
+                              frame_count, avg_size, avg_capture_time);
+
+                        frame_count = 0;
+                        total_size = 0;
+                        total_capture_time = Duration::from_secs(0);
+                        last_log = Instant::now();
+                    }
+
+                    // 广播给所有连接的客户端
+                    self.broadcast_message(message).await;
                 }
-            });
+                Err(e) => {
+                    log::error!("Capture error: {}", e);
+                }
+            }
         }
     }
 
-    async fn handle_client(&self, mut stream: TcpStream) -> Result<()> {
-        // try to reduce write-side aborts by disabling Nagle
-        let _ = stream.set_nodelay(true);
-        // 使用自定义配置的 LengthDelimitedCodec，增大最大帧大小以允许发送较大的视频帧
-        let read_codec = LengthDelimitedCodec::builder()
-            .length_field_length(4)
-            // 根据项目帧大小需要调整，这里设置为 200MB，确保 client 端也使用相同的长度字段与大小限制
-            .max_frame_length(200 * 1024 * 1024) // 200 MB
-            .new_codec();
-        let write_codec = read_codec.clone();
+    pub async fn broadcast_message(&self, message: ServerMessage) {
+        let clients = self.clients.read().clone();
 
-        let (r, w) = tokio::io::split(stream);
-        let mut reader = FramedRead::new(r, read_codec);
-        let mut writer = FramedWrite::new(w, write_codec);
-
-        let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-
-        // 添加到客户端列表
-        {
-            let mut clients = self.clients.lock().await;
-            clients.push(tx);
+        for (client_id, recipient) in clients {
+            let _ = recipient.do_send(BroadcastMessage(message.clone()));
         }
+    }
 
-        // 发送初始配置
+    pub fn add_client(&self, recipient: Recipient<BroadcastMessage>) -> usize {
+        let mut next_id = self.next_client_id.write();
+        let client_id = *next_id;
+        *next_id += 1;
+
+        self.clients.write().insert(client_id, recipient.clone());
+
+        // 发送当前配置给新客户端
         let config = ServerMessage::DisplayConfig {
             total_displays: self.virtual_displays.get_display_count(),
-            current_display: *self.current_display.read().await,
-            resolutions: vec![(1920, 1080); 3], // 示例分辨率
+            current_display: *self.current_display.read(),
+            resolutions: vec![(1920, 1080); 3],
         };
 
-        let config_data = serialize_message(&config)?;
-        writer.send(bytes::Bytes::from(config_data)).await?;
+        let _ = recipient.do_send(BroadcastMessage(config));
 
-        // 处理来自客户端的消息
-        let client_arc = self.clone();
-        let receive_task = tokio::spawn(async move {
-            while let Some(message) = reader.next().await {
-                match message {
-                    Ok(data) => {
-                        if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data) {
-                            if let Err(e) = client_arc.handle_client_message(client_msg).await {
-                                log::error!("Error handling client message: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error reading from client: {}", e);
-                        break;
-                    }
-                }
-            }
-        });
-
-        // 发送视频流到客户端
-        let send_task = tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                let data = match serialize_message(&message) {
-                    Ok(data) => bytes::Bytes::from(data),
-                    Err(e) => {
-                        log::error!("Serialization error: {}", e);
-                        continue;
-                    }
-                };
-
-                if let Err(e) = writer.send(data).await {
-                    // 对于常见的连接中断，降低日志级别并尝试优雅关闭 writer
-                    match e.kind() {
-                        ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => {
-                            log::info!("Client connection closed by peer: {}", e);
-                        }
-                        _ => {
-                            log::error!("Error sending to client: {}", e);
-                        }
-                    }
-                    // 尝试关闭 writer（吞掉可能的错误），然后退出发送任务以便上层清理客户端
-                    let _ = writer.close().await;
-                    break;
-                }
-            }
-        });
-
-        // 等待任一任务完成
-        tokio::select! {
-            _ = receive_task => {},
-            _ = send_task => {},
-        }
-
-        // 从客户端列表移除
-        {
-            let mut clients = self.clients.lock().await;
-            clients.retain(|client_tx| !client_tx.is_closed());
-        }
-
-        Ok(())
+        log::info!("New client connected: {}", client_id);
+        client_id
     }
 
-    async fn handle_client_message(&self, message: ClientMessage) -> Result<()> {
+    pub fn remove_client(&self, client_id: usize) {
+        self.clients.write().remove(&client_id);
+        log::info!("Client disconnected: {}", client_id);
+    }
+
+    pub async fn handle_client_message(&self, message: ClientMessage) -> Result<()> {
         match message {
             ClientMessage::SensorData { rotation_y, .. } => {
                 // 根据旋转数据切换显示器
@@ -180,7 +195,8 @@ impl MultiDisplayServer {
                 self.switch_display(direction).await?;
             }
             ClientMessage::Heartbeat => {
-                // 心跳处理
+                // 心跳响应
+                self.broadcast_message(ServerMessage::Heartbeat).await;
             }
         }
         Ok(())
@@ -188,7 +204,7 @@ impl MultiDisplayServer {
 
     async fn switch_display(&self, direction: SwitchDirection) -> Result<()> {
         let total_displays = self.virtual_displays.get_display_count();
-        let mut current = self.current_display.write().await;
+        let mut current = self.current_display.write();
 
         match direction {
             SwitchDirection::Next => {
@@ -204,61 +220,141 @@ impl MultiDisplayServer {
         }
 
         log::info!("Switched to display {}", *current);
+
+        // 通知所有客户端显示配置已更新
+        let config = ServerMessage::DisplayConfig {
+            total_displays,
+            current_display: *current,
+            resolutions: vec![(1920, 1080); total_displays as usize],
+        };
+
+        self.broadcast_message(config).await;
+
         Ok(())
     }
+}
 
-    async fn start_streaming(&self) {
-        let mut interval = interval(Duration::from_millis(33)); // ~30fps
+// WebSocket Actor
+pub struct WebSocketActor {
+    server: Arc<MultiDisplayServer>,
+    client_id: Option<usize>,
+    hb: Instant,
+}
 
-        loop {
-            interval.tick().await;
+impl WebSocketActor {
+    pub fn new(server: Arc<MultiDisplayServer>) -> Self {
+        Self {
+            server,
+            client_id: None,
+            hb: Instant::now(),
+        }
+    }
 
-            let current_display = *self.current_display.read().await;
+    // 发送心跳
+    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
+        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+            if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
+                log::warn!("Heartbeat timeout, disconnecting client");
+                ctx.stop();
+                return;
+            }
 
-            match self.capturer.capture_display(current_display).await {
-                Ok(frame_data) => {
-                    let message = ServerMessage::VideoFrame {
-                        display_index: current_display,
-                        width: frame_data.width,
-                        height: frame_data.height,
-                        data: frame_data.jpeg_data,
-                        timestamp: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis() as u64,
-                    };
+            ctx.ping(b"");
+        });
+    }
+}
 
-                    // 发送给所有连接的客户端
-                    // 先克隆出当前的 Sender 列表并释放锁，避免在发送时持有锁
-                    let clients_vec = {
-                        let clients = self.clients.lock().await;
-                        clients.clone()
-                    };
+impl Actor for WebSocketActor {
+    type Context = ws::WebsocketContext<Self>;
 
-                    for client in clients_vec.into_iter() {
-                        if let Err(e) = client.send(message.clone()).await {
-                            log::debug!("Failed to send to client (will cleanup): {}", e);
-                            // 清理已关闭的客户端
-                            let mut clients = self.clients.lock().await;
-                            clients.retain(|c| !c.is_closed());
-                        }
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // 注册客户端到服务器
+        let recipient = ctx.address().recipient();
+        self.client_id = Some(self.server.add_client(recipient));
+
+        // 开始心跳
+        self.hb(ctx);
+
+        log::info!("WebSocket connection established");
+    }
+
+    fn stopping(&mut self, _: &mut Self::Context) -> actix::Running {
+        // 从服务器移除客户端
+        if let Some(client_id) = self.client_id {
+            self.server.remove_client(client_id);
+        }
+
+        actix::Running::Stop
+    }
+}
+
+// 在 WebSocketActor 的 Handler<BroadcastMessage> 实现中修改：
+impl Handler<BroadcastMessage> for WebSocketActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: BroadcastMessage, ctx: &mut Self::Context) {
+        match msg.0 {
+            ServerMessage::VideoFrame { data, .. } => {
+                // 直接发送二进制数据，不进行 JSON 序列化
+                ctx.binary(data);
+            }
+            other_message => {
+                // 只有非视频帧消息才进行 JSON 序列化
+                match serde_json::to_string(&other_message) {
+                    Ok(json) => {
+                        ctx.text(json);
                     }
-                }
-                Err(e) => {
-                    log::error!("Capture error: {}", e);
+                    Err(e) => {
+                        log::error!("Failed to serialize message: {}", e);
+                    }
                 }
             }
         }
     }
 }
 
-impl Clone for MultiDisplayServer {
-    fn clone(&self) -> Self {
-        Self {
-            capturer: self.capturer.clone(),
-            virtual_displays: self.virtual_displays.clone(),
-            current_display: self.current_display.clone(),
-            clients: self.clients.clone(),
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketActor {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Ping(msg)) => {
+                self.hb = Instant::now();
+                ctx.pong(&msg);
+            }
+            Ok(ws::Message::Pong(_)) => {
+                self.hb = Instant::now();
+            }
+            Ok(ws::Message::Text(text)) => {
+                match serde_json::from_str::<ClientMessage>(&text) {
+                    Ok(client_msg) => {
+                        let server = self.server.clone();
+                        actix_rt::spawn(async move {
+                            if let Err(e) = server.handle_client_message(client_msg).await {
+                                log::error!("Error handling client message: {}", e);
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to parse client message: {}", e);
+
+                        // 发送错误消息回客户端
+                        let error_msg = ServerMessage::Error {
+                            message: format!("Invalid message format: {}", e),
+                        };
+
+                        if let Ok(json) = serde_json::to_string(&error_msg) {
+                            ctx.text(json);
+                        }
+                    }
+                }
+            }
+            Ok(ws::Message::Binary(bin)) => {
+                log::warn!("Unexpected binary message from client: {} bytes", bin.len());
+            }
+            Ok(ws::Message::Close(reason)) => {
+                ctx.close(reason);
+                ctx.stop();
+            }
+            _ => ctx.stop(),
         }
     }
 }

@@ -1,29 +1,33 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected, error }
 
 class ConnectionService extends ChangeNotifier {
-  Socket? _socket;
+  WebSocketChannel? _channel;
   ConnectionStatus _status = ConnectionStatus.disconnected;
   String _serverAddress = '192.168.31.169:8080';
   
   int _currentDisplay = 0;
   int _totalDisplays = 3;
-  List<Map<String, dynamic>> _displayResolutions = [];
-  
-  List<int>? _currentFrame;
-  int _frameWidth = 1920;
-  int _frameHeight = 1080;
+
+  Uint8List? _currentFrame;
+  int _frameWidth = 1280;
+  int _frameHeight = 720;
+
+  // 添加帧统计
+  int _totalFramesReceived = 0;
+  int _validFramesReceived = 0;
+  int _invalidFramesReceived = 0;
 
   ConnectionStatus get status => _status;
   String get serverAddress => _serverAddress;
   bool get isConnected => _status == ConnectionStatus.connected;
   int get currentDisplay => _currentDisplay;
   int get totalDisplays => _totalDisplays;
-  List<int>? get currentFrame => _currentFrame;
+  Uint8List? get currentFrame => _currentFrame;
   int get frameWidth => _frameWidth;
   int get frameHeight => _frameHeight;
 
@@ -34,19 +38,20 @@ class ConnectionService extends ChangeNotifier {
 
   Future<void> connect() async {
     if (_status == ConnectionStatus.connected) return;
-    
+
     _status = ConnectionStatus.connecting;
     notifyListeners();
 
     try {
-      // 解析 address -> host:port
-      final parts = _serverAddress.split(':');
-      final host = parts[0];
-      final port = int.tryParse(parts.length > 1 ? parts[1] : '8080') ?? 8080;
+      _channel = WebSocketChannel.connect(
+        Uri.parse('ws://$_serverAddress/ws'),
+      );
 
-      _socket = await Socket.connect(host, port);
-      // 启动读取并按 4 字节长度解析帧
-      _startReading(_socket!);
+      _channel!.stream.listen(
+        _handleMessage,
+        onError: _handleError,
+        onDone: _handleDisconnect,
+      );
 
       _status = ConnectionStatus.connected;
       notifyListeners();
@@ -58,79 +63,124 @@ class ConnectionService extends ChangeNotifier {
   }
 
   void disconnect() {
-    _socket?.destroy();
-    _socket = null;
+    _channel?.sink.close();
+    _channel = null;
     _status = ConnectionStatus.disconnected;
+    _currentFrame = null;
     notifyListeners();
   }
 
   void _handleMessage(dynamic message) {
+    _totalFramesReceived++;
+
     try {
-      // 保持兼容：message 已经是 Map<String, dynamic> 由 _startReading 解码后传入
-      final data = message is Map<String, dynamic> ? message : jsonDecode(utf8.decode(message));
-      
-      if (data['type'] == 'VideoFrame') {
-        _handleVideoFrame(data);
-      } else if (data['type'] == 'DisplayConfig') {
-        _handleDisplayConfig(data);
+      if (message is String) {
+        _handleTextMessage(message);
+      } else if (message is Uint8List) {
+        _handleBinaryMessage(message);
+      } else {
+        if (kDebugMode) {
+          print('Unknown message type: ${message.runtimeType}');
+        }
       }
     } catch (e) {
+      _invalidFramesReceived++;
       if (kDebugMode) {
         print('Error handling message: $e');
       }
     }
   }
-  
-  void _startReading(Socket socket) {
-    // 累积缓冲区
-    final buffer = BytesBuilder(copy: false);
-    socket.listen((Uint8List data) {
-      buffer.add(data);
-      var buf = buffer.takeBytes();
-      var offset = 0;
-      while (buf.lengthInBytes - offset >= 4) {
-        final header = ByteData.sublistView(buf, offset, offset + 4);
-        final len = header.getUint32(0); // big-endian 默认
-        if (buf.lengthInBytes - offset - 4 < len) {
-          // 不够一帧，回写剩余并等待更多数据
-          buffer.add(buf.sublist(offset));
-          break;
+
+  void _handleTextMessage(String message) {
+    try {
+      final data = jsonDecode(message);
+
+      if (data['type'] == 'DisplayConfig') {
+        _handleDisplayConfig(data);
+      } else if (data['type'] == 'Heartbeat') {
+        if (kDebugMode) {
+          print('Heartbeat received');
         }
-        final payload = buf.sublist(offset + 4, offset + 4 + len);
-        // 假设 payload 是 JSON 文本（utf8）。若为二进制，请按需处理。
-        try {
-          final decoded = jsonDecode(utf8.decode(payload));
-          _handleMessage(decoded);
-        } catch (e) {
-          if (kDebugMode) print('Failed to decode frame payload: $e');
-        }
-        offset += 4 + len;
-        if (offset == buf.lengthInBytes) {
-          // 正好消费完
-          break;
+      } else if (data['type'] == 'Error') {
+        if (kDebugMode) {
+          print('Server error: ${data['message']}');
         }
       }
-    }, onError: _handleError, onDone: _handleDisconnect, cancelOnError: true);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error parsing text message: $e');
+      }
+    }
   }
 
-  void _handleVideoFrame(Map<String, dynamic> data) {
-    final displayIndex = data['display_index'] as int;
-    final width = data['width'] as int;
-    final height = data['height'] as int;
-    final jpegData = List<int>.from(data['data'] as List);
-    
-    _currentDisplay = displayIndex;
-    _frameWidth = width;
-    _frameHeight = height;
-    _currentFrame = jpegData;
-    
-    notifyListeners();
+  void _handleBinaryMessage(Uint8List message) {
+    try {
+      // 增强的数据验证
+      if (!_isValidImageData(message)) {
+        _invalidFramesReceived++;
+        if (kDebugMode) {
+          print('Invalid image data received');
+        }
+        return;
+      }
+
+      _validFramesReceived++;
+      _currentFrame = message;
+
+      if (kDebugMode) {
+        print('Valid frame received: ${message.length} bytes, '
+            'Stats: $_validFramesReceived/$_totalFramesReceived valid, '
+            '${(_validFramesReceived / _totalFramesReceived * 100).toStringAsFixed(1)}% success rate');
+      }
+
+      notifyListeners();
+    } catch (e) {
+      _invalidFramesReceived++;
+      if (kDebugMode) {
+        print('Error handling binary message: $e');
+      }
+    }
+  }
+
+  bool _isValidImageData(Uint8List data) {
+    // 检查数据大小
+    if (data.isEmpty || data.length > 10 * 1024 * 1024) { // 最大 10MB
+      if (kDebugMode) {
+        print('Image data size invalid: ${data.length} bytes');
+      }
+      return false;
+    }
+
+    // 检查 JPEG 文件头 (FF D8)
+    if (data.length >= 2) {
+      if (data[0] == 0xFF && data[1] == 0xD8) {
+        // 有效的 JPEG 开头
+        return true;
+      }
+    }
+
+    // 检查 PNG 文件头
+    if (data.length >= 8) {
+      if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
+          data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A) {
+        return true;
+      }
+    }
+
+    if (kDebugMode) {
+      print('Invalid image header: ${data.sublist(0, 8).map((b) => b.toRadixString(16)).join(' ')}');
+    }
+    return false;
   }
 
   void _handleDisplayConfig(Map<String, dynamic> data) {
     _totalDisplays = data['total_displays'] as int;
     _currentDisplay = data['current_display'] as int;
-    
+
+    if (kDebugMode) {
+      print('Display config updated: $_currentDisplay/$_totalDisplays');
+    }
+
     notifyListeners();
   }
 
@@ -144,39 +194,42 @@ class ConnectionService extends ChangeNotifier {
 
   void _handleDisconnect() {
     _status = ConnectionStatus.disconnected;
+    _currentFrame = null;
     notifyListeners();
   }
 
   void sendSensorData(double rotationX, double rotationY, double rotationZ) {
     if (!isConnected) return;
-    
-    final message = {
+
+    final message = jsonEncode({
       'type': 'SensorData',
       'rotation_x': rotationX,
       'rotation_y': rotationY,
       'rotation_z': rotationZ,
-    };
-    final payload = utf8.encode(jsonEncode(message));
-    _sendWithLengthPrefix(payload);
+    });
+
+    _channel?.sink.add(message);
   }
 
   void switchDisplay(String direction) {
     if (!isConnected) return;
-    
-    final message = {
+
+    final message = jsonEncode({
       'type': 'SwitchDisplay',
       'direction': direction,
-    };
-    final payload = utf8.encode(jsonEncode(message));
-    _sendWithLengthPrefix(payload);
+    });
+
+    _channel?.sink.add(message);
   }
 
-  void _sendWithLengthPrefix(List<int> payload) {
-    if (_socket == null) return;
-    final header = ByteData(4);
-    header.setUint32(0, payload.length); // big-endian
-    _socket!.add(header.buffer.asUint8List());
-    _socket!.add(payload);
+  void sendHeartbeat() {
+    if (!isConnected) return;
+
+    final message = jsonEncode({
+      'type': 'Heartbeat',
+    });
+
+    _channel?.sink.add(message);
   }
 
   @override
