@@ -38,7 +38,7 @@ impl ScreenCapturer {
         let image = screen.capture().unwrap();
 
         // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
-        display.framebuffer =  image.rgba().to_vec();
+        display.framebuffer = image.into_raw();
     }
 
     pub fn capture_data(&self) -> Result<Vec<u8>> {
@@ -47,7 +47,7 @@ impl ScreenCapturer {
         let image = screen.capture().unwrap();
 
         // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
-        Ok(image.rgba().to_vec())
+        Ok(image.into_raw())
     }
 
     // pub async fn capture_display(&self, display_index: u8) -> Result<FrameData> {

@@ -1,23 +1,25 @@
 use crate::capture::ScreenCapturer;
 use crate::virtual_display::VirtualDisplayManager;
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use futures::{SinkExt, StreamExt};
 use rotascope_core::{
     ClientMessage, ServerMessage, SwitchDirection, deserialize_message, serialize_message,
 };
-use std::sync::Arc;
 use std::io::ErrorKind;
+use std::sync::Arc;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Mutex, RwLock};
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{Duration, interval};
+use tokio_tungstenite::accept_async;
 use tokio_util::bytes;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::codec::{FramedRead, FramedWrite};
+use tungstenite::Message;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct MultiDisplayServer {
     capturer: Arc<ScreenCapturer>,
     virtual_displays: Arc<VirtualDisplayManager>,
@@ -52,7 +54,6 @@ impl MultiDisplayServer {
     }
 
     pub async fn start_server(&self, addr: &str) -> Result<()> {
-        let listener = TcpListener::bind(addr).await?;
         log::info!("Server listening on {}", addr);
         println!("Server listening on {}", addr);
 
@@ -63,94 +64,96 @@ impl MultiDisplayServer {
         tokio::spawn(async move {
             stream_arc.start_streaming().await;
         });
+        let addr_owned = addr.to_string();
+        let s = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async move {
+                let listener = TcpListener::bind(&addr_owned).await.unwrap();
+                loop {
+                    let (socket, addr) = listener.accept().await.unwrap();
+                    log::info!("New client connected: {}", addr);
+                    println!("New client connected: {}", addr);
 
-        loop {
-            let (socket, addr) = listener.accept().await?;
-            log::info!("New client connected: {}", addr);
-            println!("New client connected: {}", addr);
-
-            let client_arc = server_arc.clone();
-            tokio::spawn(async move {
-                if let Err(e) = client_arc.handle_client(socket).await {
-                    log::error!("Client handling error: {}", e);
-                    println!("Client handling error: {}", e);
+                    let client_arc = server_arc.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = client_arc.handle_client(socket).await {
+                            log::error!("Client handling error: {}", e);
+                            println!("Client handling error: {}", e);
+                        }
+                    });
                 }
             });
-        }
+        });
+        s.join().unwrap();
+        Ok(())
     }
 
     async fn handle_client(&self, mut stream: TcpStream) -> Result<()> {
-        // try to reduce write-side aborts by disabling Nagle
-        let _ = stream.set_nodelay(true);
-        // 使用自定义配置的 LengthDelimitedCodec，增大最大帧大小以允许发送较大的视频帧
-        let read_codec = LengthDelimitedCodec::builder()
-            .length_field_length(4)
-            // 根据项目帧大小需要调整，这里设置为 200MB，确保 client 端也使用相同的长度字段与大小限制
-            .max_frame_length(200 * 1024 * 1024) // 200 MB
-            .new_codec();
-        let write_codec = read_codec.clone();
+        println!("handle_client");
+        let ws_stream = accept_async(stream).await.expect("Failed to accept");
 
-        let (r, w) = tokio::io::split(stream);
-        let mut reader = FramedRead::new(r, read_codec);
-        let mut writer = FramedWrite::new(w, write_codec);
+        let (mut writer, reader) = ws_stream.split();
 
         let (tx, mut rx) = tokio::sync::mpsc::channel(32);
 
         // 添加到客户端列表
         {
             let mut clients = self.clients.lock().await;
-            clients.push(tx);
+            clients.push(tx.clone());
         }
 
         self.send_config_to_client(&mut writer).await?;
-
         // 处理来自客户端的消息
         let receive_task = self.deal_msg_from_client(reader);
 
         let send_task = Self::send_msg2client(writer, rx);
-
         // 等待任一任务完成
         tokio::select! {
             _ = receive_task => {},
             _ = send_task => {},
         }
 
-        // 从客户端列表移除
+        // 从客户端列表移除（通过释放 tx 的克隆来标记该客户端已断开）
         {
             let mut clients = self.clients.lock().await;
             clients.retain(|client_tx| !client_tx.is_closed());
         }
 
+        // 显式关闭当前客户端的发送端
+        drop(tx);
+
         Ok(())
     }
 
-    fn send_msg2client(mut writer: FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>, mut rx: Receiver<ServerMessage>) -> JoinHandle<()> {
+    fn send_msg2client(
+        mut writer: futures::stream::SplitSink<
+            tokio_tungstenite::WebSocketStream<TcpStream>,
+            tokio_tungstenite::tungstenite::Message,
+        >,
+        mut rx: Receiver<ServerMessage>,
+    ) -> JoinHandle<()> {
         // 发送视频流到客户端
         let send_task = tokio::spawn(async move {
             println!("send_msg2client send_task");
             while let Some(message) = rx.recv().await {
                 let data = match serialize_message(&message) {
-                    Ok(data) => bytes::Bytes::from(data),
-                    Err(e) => {
+                    std::result::Result::Ok(data) => data,
+                    std::result::Result::Err(e) => {
                         log::error!("Serialization error: {}", e);
                         println!("Serialization error: {}", e);
                         continue;
                     }
                 };
 
-                if let Err(e) = writer.send(data).await {
-                    // 对于常见的连接中断，降低日志级别并尝试优雅关闭 writer
-                    match e.kind() {
-                        ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => {
-                            log::info!("Client connection closed by peer: {}", e);
-                            println!("Client connection closed by peer: {}", e);
-                        }
-                        _ => {
-                            log::error!("Error sending to client: {}", e);
-                            println!("Error sending to client: {}", e);
-                        }
-                    }
-                    // 尝试关闭 writer（吞掉可能的错误），然后退出发送任务以便上层清理客户端
+                if let Err(e) = writer
+                    .send(tokio_tungstenite::tungstenite::Message::Binary(data.into()))
+                    .await
+                {
+                    log::error!("Error sending to client: {}", e);
+                    println!("Error sending to client: {}", e);
                     let _ = writer.close().await;
                     break;
                 }
@@ -159,21 +162,47 @@ impl MultiDisplayServer {
         send_task
     }
 
-    fn deal_msg_from_client(&self, mut reader: FramedRead<ReadHalf<TcpStream>, LengthDelimitedCodec>) -> JoinHandle<()> {
+    fn deal_msg_from_client(
+        &self,
+        reader: futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<TcpStream>>,
+    ) -> JoinHandle<()> {
         let client_arc = self.clone();
         let receive_task = tokio::spawn(async move {
             println!("deal_msg_from_client receive_task");
-            while let Some(message) = reader.next().await {
-                match message {
-                    Ok(data) => {
-                        if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data) {
-                            if let Err(e) = client_arc.handle_client_message(client_msg).await {
-                                log::error!("Error handling client message: {}", e);
-                                println!("Error handling client message: {}", e);
+            let mut read_stream = reader;
+            while let Some(result) = read_stream.next().await {
+                println!("deal_msg_from_client message: {:?}", &result);
+                match result {
+                    std::result::Result::Ok(msg) => {
+                        println!("deal_msg_from_client msg: {:?}", &msg);
+                        match msg {
+                            Message::Text(text) => {}
+                            Message::Binary(data) => {
+                                if let std::result::Result::Ok(client_msg) =
+                                    deserialize_message::<ClientMessage>(&data)
+                                {
+                                    if let Err(e) =
+                                        client_arc.handle_client_message(client_msg).await
+                                    {
+                                        log::error!("Error handling client message: {}", e);
+                                        println!("Error handling client message: {}", e);
+                                    }
+                                }
                             }
+                            Message::Close(_) => {
+                                println!("Client  sent close frame");
+                                break;
+                            }
+                            Message::Ping(ping_data) => {
+                                // 自动响应 pong
+                            }
+                            Message::Pong(_) => {
+                                // 忽略 pong 响应
+                            }
+                            _ => {}
                         }
                     }
-                    Err(e) => {
+                    std::result::Result::Err(e) => {
                         log::error!("Error reading from client: {}", e);
                         println!("Error reading from client: {}", e);
                         break;
@@ -184,7 +213,13 @@ impl MultiDisplayServer {
         receive_task
     }
 
-    async fn send_config_to_client(&self, writer: &mut FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>) -> Result<()> {
+    async fn send_config_to_client(
+        &self,
+        writer: &mut futures::stream::SplitSink<
+            tokio_tungstenite::WebSocketStream<TcpStream>,
+            tokio_tungstenite::tungstenite::Message,
+        >,
+    ) -> Result<()> {
         println!("send_config_to_client");
         // 发送初始配置
         let config = ServerMessage::DisplayConfig {
@@ -194,7 +229,11 @@ impl MultiDisplayServer {
         };
 
         let config_data = serialize_message(&config)?;
-        writer.send(bytes::Bytes::from(config_data)).await?;
+        writer
+            .send(tokio_tungstenite::tungstenite::Message::Binary(
+                config_data.into(),
+            ))
+            .await?;
         Ok(())
     }
 
@@ -252,7 +291,7 @@ impl MultiDisplayServer {
             let current_display = *self.current_display.read().await;
 
             match self.capturer.capture_display(current_display).await {
-                Ok(frame_data) => {
+                std::result::Result::Ok(frame_data) => {
                     let message = ServerMessage::VideoFrame {
                         display_index: current_display,
                         width: frame_data.width,
@@ -288,4 +327,3 @@ impl MultiDisplayServer {
         }
     }
 }
-
