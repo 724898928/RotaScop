@@ -48,8 +48,8 @@ impl VirtualDisplayManager {
         Ok(())
     }
 
-    pub fn get_display_count(&self) -> u8 {
-        self.displays.lock().unwrap().len() as u8
+    pub fn get_display_count(&self) -> usize {
+        self.displays.lock().unwrap().len()
     }
 
     pub fn switch_display(&self, delta: i32) {

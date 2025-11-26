@@ -187,7 +187,7 @@ impl MultiDisplayServer {
     }
 
     async fn switch_display(&self, direction: SwitchDirection) -> Result<()> {
-        let total_displays = self.virtual_displays.get_display_count();
+        let total_displays = self.virtual_displays.get_display_count() as u8;
         let mut current = self.current_display.write().await;
 
         match direction {
