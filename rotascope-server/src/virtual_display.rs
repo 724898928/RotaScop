@@ -34,6 +34,7 @@ impl VirtualDisplayManager {
 
     pub async fn initialize(&self) -> Result<()> {
         log::info!("Initializing {} virtual displays", self.displays.lock().unwrap().len());
+        println!("Initializing {} virtual displays", self.displays.lock().unwrap().len());
 
         // 在实际实现中，这里会：
         // 1. 调用操作系统API创建虚拟显示器
@@ -43,6 +44,7 @@ impl VirtualDisplayManager {
         // 目前是模拟实现
         for i in 0..self.displays.lock().unwrap().len() {
             log::info!("Created virtual display {}", i);
+            println!("Created virtual display {}", i);
         }
 
         Ok(())

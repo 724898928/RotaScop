@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     log::info!("Starting Multi-Display PC Server...");
+    println!("Starting Multi-Display PC Server...");
 
     let server = Arc::new(MultiDisplayServer::new(3)?); // 3个虚拟显示器
 

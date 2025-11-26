@@ -42,12 +42,14 @@ impl MultiDisplayServer {
     pub async fn start_virtual_displays(&self) -> Result<()> {
         self.virtual_displays.initialize().await?;
         log::info!("Virtual displays initialized");
+        println!("Virtual displays initialized");
         Ok(())
     }
 
     pub async fn start_server(&self, addr: &str) -> Result<()> {
         let listener = TcpListener::bind(addr).await?;
         log::info!("Server listening on {}", addr);
+        println!("Server listening on {}", addr);
 
         // 使用 owned clone 放入 Arc，使其可以安全地移动到后台任务中
         let server_arc = Arc::new(self.clone());
@@ -60,11 +62,13 @@ impl MultiDisplayServer {
         loop {
             let (socket, addr) = listener.accept().await?;
             log::info!("New client connected: {}", addr);
+            println!("New client connected: {}", addr);
 
             let client_arc = server_arc.clone();
             tokio::spawn(async move {
                 if let Err(e) = client_arc.handle_client(socket).await {
                     log::error!("Client handling error: {}", e);
+                    println!("Client handling error: {}", e);
                 }
             });
         }
@@ -112,11 +116,13 @@ impl MultiDisplayServer {
                         if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data) {
                             if let Err(e) = client_arc.handle_client_message(client_msg).await {
                                 log::error!("Error handling client message: {}", e);
+                                println!("Error handling client message: {}", e);
                             }
                         }
                     }
                     Err(e) => {
                         log::error!("Error reading from client: {}", e);
+                        println!("Error reading from client: {}", e);
                         break;
                     }
                 }
@@ -130,6 +136,7 @@ impl MultiDisplayServer {
                     Ok(data) => bytes::Bytes::from(data),
                     Err(e) => {
                         log::error!("Serialization error: {}", e);
+                        println!("Serialization error: {}", e);
                         continue;
                     }
                 };
@@ -139,9 +146,11 @@ impl MultiDisplayServer {
                     match e.kind() {
                         ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => {
                             log::info!("Client connection closed by peer: {}", e);
+                            println!("Client connection closed by peer: {}", e);
                         }
                         _ => {
                             log::error!("Error sending to client: {}", e);
+                            println!("Error sending to client: {}", e);
                         }
                     }
                     // 尝试关闭 writer（吞掉可能的错误），然后退出发送任务以便上层清理客户端
@@ -204,6 +213,7 @@ impl MultiDisplayServer {
         }
 
         log::info!("Switched to display {}", *current);
+        println!("Switched to display {}", *current);
         Ok(())
     }
 
@@ -246,6 +256,7 @@ impl MultiDisplayServer {
                 }
                 Err(e) => {
                     log::error!("Capture error: {}", e);
+                    println!("Capture error: {}", e);
                 }
             }
         }
