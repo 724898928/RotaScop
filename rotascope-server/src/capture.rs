@@ -5,7 +5,7 @@ use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
 use screenshots::Screen;
 
 use crate::virtual_display::{VirtualDisplay, VirtualDisplayManager};
-
+#[derive(Debug,Clone)]
 pub struct FrameData {
     pub width: u32,
     pub height: u32,
@@ -13,6 +13,7 @@ pub struct FrameData {
 }
 
 #[cfg(target_os = "windows")]
+#[derive(Debug,Clone)]
 pub struct ScreenCapturer {
     // Windows DXGI 捕获实现
 }

@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct VirtualDisplayManager {
     pub displays: Arc<Mutex<Vec<VirtualDisplay>>>,
     pub current_display: Arc<Mutex<usize>>,
 }
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct VirtualDisplay {
     pub id: u32,
     pub width: u32,

@@ -16,6 +16,8 @@ use tokio::time::{Duration, interval};
 use tokio_util::bytes;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::codec::{FramedRead, FramedWrite};
+
+#[derive(Debug,Clone)]
 pub struct MultiDisplayServer {
     capturer: Arc<ScreenCapturer>,
     virtual_displays: Arc<VirtualDisplayManager>,
@@ -125,6 +127,7 @@ impl MultiDisplayServer {
     fn send_msg2client(mut writer: FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>, mut rx: Receiver<ServerMessage>) -> JoinHandle<()> {
         // 发送视频流到客户端
         let send_task = tokio::spawn(async move {
+            println!("send_msg2client send_task");
             while let Some(message) = rx.recv().await {
                 let data = match serialize_message(&message) {
                     Ok(data) => bytes::Bytes::from(data),
@@ -159,6 +162,7 @@ impl MultiDisplayServer {
     fn deal_msg_from_client(&self, mut reader: FramedRead<ReadHalf<TcpStream>, LengthDelimitedCodec>) -> JoinHandle<()> {
         let client_arc = self.clone();
         let receive_task = tokio::spawn(async move {
+            println!("deal_msg_from_client receive_task");
             while let Some(message) = reader.next().await {
                 match message {
                     Ok(data) => {
@@ -180,7 +184,8 @@ impl MultiDisplayServer {
         receive_task
     }
 
-    async fn send_config_to_client(&self, writer: &mut FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>) -> Result<(), Error> {
+    async fn send_config_to_client(&self, writer: &mut FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>) -> Result<()> {
+        println!("send_config_to_client");
         // 发送初始配置
         let config = ServerMessage::DisplayConfig {
             total_displays: self.virtual_displays.get_display_count(),
@@ -194,6 +199,7 @@ impl MultiDisplayServer {
     }
 
     async fn handle_client_message(&self, message: ClientMessage) -> Result<()> {
+        println!("handle_client_message");
         match message {
             ClientMessage::SensorData { rotation_y, .. } => {
                 // 根据旋转数据切换显示器
@@ -214,6 +220,7 @@ impl MultiDisplayServer {
     }
 
     async fn switch_display(&self, direction: SwitchDirection) -> Result<()> {
+        println!("switch_display");
         let total_displays = self.virtual_displays.get_display_count() as u8;
         let mut current = self.current_display.write().await;
 
@@ -236,6 +243,7 @@ impl MultiDisplayServer {
     }
 
     async fn start_streaming(&self) {
+        println!("start_streaming");
         let mut interval = interval(Duration::from_millis(33)); // ~30fps
 
         loop {
@@ -281,13 +289,3 @@ impl MultiDisplayServer {
     }
 }
 
-impl Clone for MultiDisplayServer {
-    fn clone(&self) -> Self {
-        Self {
-            capturer: self.capturer.clone(),
-            virtual_displays: self.virtual_displays.clone(),
-            current_display: self.current_display.clone(),
-            clients: self.clients.clone(),
-        }
-    }
-}
