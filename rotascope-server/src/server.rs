@@ -5,6 +5,7 @@ use futures::{SinkExt, StreamExt};
 use rotascope_core::{
     ClientMessage, ServerMessage, SwitchDirection, deserialize_message, serialize_message,
 };
+use tokio::runtime::Runtime;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::io::{ReadHalf, WriteHalf};
@@ -17,7 +18,7 @@ use tokio_tungstenite::accept_async;
 use tokio_util::bytes;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::codec::{FramedRead, FramedWrite};
-use tungstenite::Message;
+use tungstenite::{Message, Utf8Bytes};
 
 #[derive(Debug, Clone)]
 pub struct MultiDisplayServer {
@@ -66,10 +67,7 @@ impl MultiDisplayServer {
         });
         let addr_owned = addr.to_string();
         let s = std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
+            let rt = Runtime::new().unwrap();
             rt.block_on(async move {
                 let listener = TcpListener::bind(&addr_owned).await.unwrap();
                 loop {
@@ -139,23 +137,21 @@ impl MultiDisplayServer {
         let send_task = tokio::spawn(async move {
             println!("send_msg2client send_task");
             while let Some(message) = rx.recv().await {
-                let data = match serialize_message(&message) {
-                    std::result::Result::Ok(data) => data,
-                    std::result::Result::Err(e) => {
-                        log::error!("Serialization error: {}", e);
-                        println!("Serialization error: {}", e);
-                        continue;
+                match message {
+                    ServerMessage::VideoFrame { data, .. } => {
+                        if let Err(e) = writer.send(Message::Binary(data.into())).await {
+                            log::error!("Error sending binary frame: {}", e);
+                            break;
+                        }
                     }
-                };
-
-                if let Err(e) = writer
-                    .send(tokio_tungstenite::tungstenite::Message::Binary(data.into()))
-                    .await
-                {
-                    log::error!("Error sending to client: {}", e);
-                    println!("Error sending to client: {}", e);
-                    let _ = writer.close().await;
-                    break;
+                    other_message => {
+                        if let Result:: Ok(text) = serialize_message(&other_message) {
+                            if let Err(e) = writer.send(Message::Text(Utf8Bytes::try_from(text).unwrap())).await {
+                                log::error!("Error sending text message: {}", e);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         });

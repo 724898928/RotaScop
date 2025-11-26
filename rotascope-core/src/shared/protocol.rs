@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use bincode;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
     SensorData {
         rotation_x: f32,
@@ -14,7 +13,7 @@ pub enum ClientMessage {
     Heartbeat,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SwitchDirection {
     Next,
     Previous,
@@ -30,15 +29,17 @@ pub enum ServerMessage {
         timestamp: u64,
     },
     DisplayConfig {
-        total_displays: u8,
+        total_displays: usize,
         current_display: u8,
         resolutions: Vec<(u32, u32)>,
     },
+    Heartbeat,
     Error {
         message: String,
     },
 }
 
+// 序列化辅助函数
 pub fn serialize_message<T: Serialize>(msg: &T) -> Result<Vec<u8>, bincode::Error> {
     bincode::serialize(msg)
 }

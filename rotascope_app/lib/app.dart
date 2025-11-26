@@ -4,8 +4,8 @@ import 'screens/remote_screen.dart';
 import 'services/connection_service.dart';
 import 'services/sensor_service.dart';
 
-class MultiScreenRemoteApp extends StatelessWidget {
-  const MultiScreenRemoteApp({super.key});
+class RotascopeApp extends StatelessWidget {
+  const RotascopeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,12 +15,26 @@ class MultiScreenRemoteApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SensorService()),
       ],
       child: MaterialApp(
-        title: 'Multi-Screen Remote',
+        title: 'Rotascope',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.dark,
+          ),
           useMaterial3: true,
+          scaffoldBackgroundColor: Colors.black,
         ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
+          scaffoldBackgroundColor: Colors.black,
+        ),
+        themeMode: ThemeMode.dark,
         home: const RemoteScreen(),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

@@ -2,5 +2,5 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 
 void main() {
-  runApp(const MultiScreenRemoteApp());
+  runApp(const RotascopeApp());
 }
