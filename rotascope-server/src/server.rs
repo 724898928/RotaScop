@@ -7,8 +7,11 @@ use rotascope_core::{
 };
 use std::sync::Arc;
 use std::io::ErrorKind;
+use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Mutex, RwLock};
+use tokio::sync::mpsc::Receiver;
+use tokio::task::JoinHandle;
 use tokio::time::{Duration, interval};
 use tokio_util::bytes;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -97,38 +100,29 @@ impl MultiDisplayServer {
             clients.push(tx);
         }
 
-        // 发送初始配置
-        let config = ServerMessage::DisplayConfig {
-            total_displays: self.virtual_displays.get_display_count(),
-            current_display: *self.current_display.read().await,
-            resolutions: vec![(1920, 1080); 3], // 示例分辨率
-        };
-
-        let config_data = serialize_message(&config)?;
-        writer.send(bytes::Bytes::from(config_data)).await?;
+        self.send_config_to_client(&mut writer).await?;
 
         // 处理来自客户端的消息
-        let client_arc = self.clone();
-        let receive_task = tokio::spawn(async move {
-            while let Some(message) = reader.next().await {
-                match message {
-                    Ok(data) => {
-                        if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data) {
-                            if let Err(e) = client_arc.handle_client_message(client_msg).await {
-                                log::error!("Error handling client message: {}", e);
-                                println!("Error handling client message: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error reading from client: {}", e);
-                        println!("Error reading from client: {}", e);
-                        break;
-                    }
-                }
-            }
-        });
+        let receive_task = self.deal_msg_from_client(reader);
 
+        let send_task = Self::send_msg2client(writer, rx);
+
+        // 等待任一任务完成
+        tokio::select! {
+            _ = receive_task => {},
+            _ = send_task => {},
+        }
+
+        // 从客户端列表移除
+        {
+            let mut clients = self.clients.lock().await;
+            clients.retain(|client_tx| !client_tx.is_closed());
+        }
+
+        Ok(())
+    }
+
+    fn send_msg2client(mut writer: FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>, mut rx: Receiver<ServerMessage>) -> JoinHandle<()> {
         // 发送视频流到客户端
         let send_task = tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
@@ -159,19 +153,43 @@ impl MultiDisplayServer {
                 }
             }
         });
+        send_task
+    }
 
-        // 等待任一任务完成
-        tokio::select! {
-            _ = receive_task => {},
-            _ = send_task => {},
-        }
+    fn deal_msg_from_client(&self, mut reader: FramedRead<ReadHalf<TcpStream>, LengthDelimitedCodec>) -> JoinHandle<()> {
+        let client_arc = self.clone();
+        let receive_task = tokio::spawn(async move {
+            while let Some(message) = reader.next().await {
+                match message {
+                    Ok(data) => {
+                        if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data) {
+                            if let Err(e) = client_arc.handle_client_message(client_msg).await {
+                                log::error!("Error handling client message: {}", e);
+                                println!("Error handling client message: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error reading from client: {}", e);
+                        println!("Error reading from client: {}", e);
+                        break;
+                    }
+                }
+            }
+        });
+        receive_task
+    }
 
-        // 从客户端列表移除
-        {
-            let mut clients = self.clients.lock().await;
-            clients.retain(|client_tx| !client_tx.is_closed());
-        }
+    async fn send_config_to_client(&self, writer: &mut FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>) -> Result<(), Error> {
+        // 发送初始配置
+        let config = ServerMessage::DisplayConfig {
+            total_displays: self.virtual_displays.get_display_count(),
+            current_display: *self.current_display.read().await,
+            resolutions: vec![(1920, 1080); 3], // 示例分辨率
+        };
 
+        let config_data = serialize_message(&config)?;
+        writer.send(bytes::Bytes::from(config_data)).await?;
         Ok(())
     }
 
