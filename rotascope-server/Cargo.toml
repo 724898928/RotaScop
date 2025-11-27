@@ -6,19 +6,23 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
 bincode = "2"
-anyhow = "1.0"
 image = "0.25"
 x11rb = "0.13" # Linux 屏幕捕获
-windows = "0.62" # Windows API
 env_logger = "0.11"
 log = "0.4"
-rotascope-core = {path = "../rotascope-core"}
+rotascope-core = { path = "../rotascope-core" }
 tokio-util = { version = "0.7.17", features = ["codec"] }
 futures = "0.3"
 screenshots = "0.8"
 tungstenite = "0.28.0"
 tokio-tungstenite = "0.28.0"
+chrono = "0.4.42"
+windows = { version = "0.62", features = ["Win32_AI", "Win32_Devices_Display", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dxgi", "Win32_Graphics_Direct3D11"] }
+scrap = "0.5.0"
+jpeg-encoder = "0.6.1"
+
 
 [profile.release]
 strip = true

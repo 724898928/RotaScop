@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
+use rotascope_core::Result;
 
-use anyhow::Result;
 #[derive(Debug,Clone)]
 pub struct VirtualDisplayManager {
     pub displays: Arc<Mutex<Vec<VirtualDisplay>>>,

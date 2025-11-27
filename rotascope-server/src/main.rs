@@ -1,11 +1,14 @@
 mod capture;
 mod virtual_display;
 mod server;
+mod CrossPlatformCapturer;
+mod ScreenCapturer;
 
-use anyhow::Result;
 use env_logger::Env;
-use server::MultiDisplayServer;
+use server::*;
 use std::sync::Arc;
+use rotascope_core::Result;
+
 
 #[tokio::main]
 async fn main() -> Result<()> {

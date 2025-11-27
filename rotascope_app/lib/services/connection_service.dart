@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/io.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected, error }
 
@@ -18,11 +17,10 @@ class ConnectionService extends ChangeNotifier {
   int _frameWidth = 1280;
   int _frameHeight = 720;
 
-  // 帧统计
+  // 添加帧统计
   int _totalFramesReceived = 0;
   int _validFramesReceived = 0;
   int _invalidFramesReceived = 0;
-  String _frameStats = '';
 
   ConnectionStatus get status => _status;
   String get serverAddress => _serverAddress;
@@ -32,7 +30,6 @@ class ConnectionService extends ChangeNotifier {
   Uint8List? get currentFrame => _currentFrame;
   int get frameWidth => _frameWidth;
   int get frameHeight => _frameHeight;
-  String get frameStats => _frameStats;
 
   void updateServerAddress(String address) {
     _serverAddress = address;
@@ -46,13 +43,9 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse('ws://$_serverAddress');
-
-      if (kDebugMode) {
-        print('Connecting to WebSocket: $uri');
-      }
-
-      _channel = IOWebSocketChannel.connect(uri);
+      _channel = WebSocketChannel.connect(
+        Uri.parse('ws://$_serverAddress'),
+      );
 
       _channel!.stream.listen(
         _handleMessage,
@@ -61,19 +54,10 @@ class ConnectionService extends ChangeNotifier {
       );
 
       _status = ConnectionStatus.connected;
-      _resetFrameStats();
       notifyListeners();
-
-      if (kDebugMode) {
-        print('Successfully connected to $_serverAddress');
-      }
     } catch (e) {
       _status = ConnectionStatus.error;
       notifyListeners();
-
-      if (kDebugMode) {
-        print('Connection error: $e');
-      }
       rethrow;
     }
   }
@@ -84,10 +68,6 @@ class ConnectionService extends ChangeNotifier {
     _status = ConnectionStatus.disconnected;
     _currentFrame = null;
     notifyListeners();
-
-    if (kDebugMode) {
-      print('Disconnected from server');
-    }
   }
 
   void _handleMessage(dynamic message) {
@@ -104,7 +84,6 @@ class ConnectionService extends ChangeNotifier {
       }
     } catch (e) {
       _invalidFramesReceived++;
-      _updateFrameStats();
       if (kDebugMode) {
         print('Error handling message: $e');
       }
@@ -119,7 +98,7 @@ class ConnectionService extends ChangeNotifier {
         _handleDisplayConfig(data);
       } else if (data['type'] == 'Heartbeat') {
         if (kDebugMode) {
-          print('Heartbeat received from server');
+          print('Heartbeat received');
         }
       } else if (data['type'] == 'Error') {
         if (kDebugMode) {
@@ -135,28 +114,27 @@ class ConnectionService extends ChangeNotifier {
 
   void _handleBinaryMessage(Uint8List message) {
     try {
-      // 验证数据是否是有效的JPEG
+      // 增强的数据验证
       if (!_isValidImageData(message)) {
         _invalidFramesReceived++;
-        _updateFrameStats();
         if (kDebugMode) {
-          print('Invalid image data received: ${message.length} bytes');
+          print('Invalid image data received');
         }
         return;
       }
 
       _validFramesReceived++;
       _currentFrame = message;
-      _updateFrameStats();
 
-      if (kDebugMode && _validFramesReceived % 30 == 0) {
-        print('Frame stats: $_validFramesReceived/$_totalFramesReceived valid');
+      if (kDebugMode) {
+        print('Valid frame received: ${message.length} bytes, '
+            'Stats: $_validFramesReceived/$_totalFramesReceived valid, '
+            '${(_validFramesReceived / _totalFramesReceived * 100).toStringAsFixed(1)}% success rate');
       }
 
       notifyListeners();
     } catch (e) {
       _invalidFramesReceived++;
-      _updateFrameStats();
       if (kDebugMode) {
         print('Error handling binary message: $e');
       }
@@ -165,23 +143,38 @@ class ConnectionService extends ChangeNotifier {
 
   bool _isValidImageData(Uint8List data) {
     // 检查数据大小
-    if (data.isEmpty || data.length > 10 * 1024 * 1024) {
+    if (data.isEmpty || data.length > 10 * 1024 * 1024) { // 最大 10MB
+      if (kDebugMode) {
+        print('Image data size invalid: ${data.length} bytes');
+      }
       return false;
     }
 
     // 检查 JPEG 文件头 (FF D8)
     if (data.length >= 2) {
       if (data[0] == 0xFF && data[1] == 0xD8) {
+        // 有效的 JPEG 开头
         return true;
       }
     }
 
+    // 检查 PNG 文件头
+    if (data.length >= 8) {
+      if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
+          data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A) {
+        return true;
+      }
+    }
+
+    if (kDebugMode) {
+      print('Invalid image header: ${data.sublist(0, 8).map((b) => b.toRadixString(16)).join(' ')}');
+    }
     return false;
   }
 
   void _handleDisplayConfig(Map<String, dynamic> data) {
-    _totalDisplays = (data['total_displays'] as num).toInt();
-    _currentDisplay = (data['current_display'] as num).toInt();
+    _totalDisplays = data['total_displays'] as int;
+    _currentDisplay = data['current_display'] as int;
 
     if (kDebugMode) {
       print('Display config updated: $_currentDisplay/$_totalDisplays');
@@ -199,28 +192,9 @@ class ConnectionService extends ChangeNotifier {
   }
 
   void _handleDisconnect() {
-    if (kDebugMode) {
-      print('WebSocket connection closed');
-    }
     _status = ConnectionStatus.disconnected;
     _currentFrame = null;
     notifyListeners();
-  }
-
-  void _resetFrameStats() {
-    _totalFramesReceived = 0;
-    _validFramesReceived = 0;
-    _invalidFramesReceived = 0;
-    _frameStats = '';
-  }
-
-  void _updateFrameStats() {
-    final successRate = _totalFramesReceived > 0
-        ? (_validFramesReceived / _totalFramesReceived * 100)
-        : 0;
-
-    _frameStats = '${_validFramesReceived}/${_totalFramesReceived} '
-        '(${successRate.toStringAsFixed(1)}%)';
   }
 
   void sendSensorData(double rotationX, double rotationY, double rotationZ) {
@@ -233,13 +207,7 @@ class ConnectionService extends ChangeNotifier {
       'rotation_z': rotationZ,
     });
 
-    try {
-      _channel?.sink.add(message);
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error sending sensor data: $e');
-      }
-    }
+    _channel?.sink.add(message);
   }
 
   void switchDisplay(String direction) {
@@ -250,16 +218,17 @@ class ConnectionService extends ChangeNotifier {
       'direction': direction,
     });
 
-    try {
-      _channel?.sink.add(message);
-      if (kDebugMode) {
-        print('Sent switch display command: $direction');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error sending switch command: $e');
-      }
-    }
+    _channel?.sink.add(message);
+  }
+
+  void sendHeartbeat() {
+    if (!isConnected) return;
+
+    final message = jsonEncode({
+      'type': 'Heartbeat',
+    });
+
+    _channel?.sink.add(message);
   }
 
   @override

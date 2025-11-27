@@ -19,3 +19,10 @@ samples, guidance on mobile development, and a full API reference.
 
 
 如何将手机作为PC端的显示器显示出两个多个显示器效果,通过旋转手机来切换显示器,请使用rust的ws = "0.9.2"插件开发服务端,flutter做移动端开发语言来开发此项目
+
+):14745600
+send_msg2client message data.len():14745600
+send_msg2client message data.len():47897579
+[2025-11-27T08:42:26Z ERROR rotascope_server::server] Error sending binary frame: IO error: An existing connection was forcibly closed by the remote host. (os error 10054)
+send_msg2client send_task recv message 
+

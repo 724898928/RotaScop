@@ -1,10 +1,9 @@
 use std::io::Cursor;
-use anyhow::Result;
-use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
+use image::{ ImageBuffer, ImageFormat, Rgba};
 use screenshots::Screen;
+use rotascope_core::Result;
 
-use crate::virtual_display::{VirtualDisplay, VirtualDisplayManager};
+use crate::virtual_display::{VirtualDisplay};
 #[derive(Debug,Clone)]
 pub struct FrameData {
     pub width: u32,
@@ -107,7 +106,7 @@ impl ScreenCapturer {
         let dynamic_img = image::DynamicImage::ImageRgba8(img);
 
         // 使用 image crate 的 JPEG 编码，设置质量参数
-        dynamic_img.write_to(&mut std::io::Cursor::new(&mut jpeg_data), ImageFormat::Jpeg)?;
+        dynamic_img.write_to(&mut std::io::Cursor::new(&mut jpeg_data), ImageFormat::Jpeg).map_err(|e|e.to_string())?;
 
         // 如果数据仍然太大，进行二次压缩
         if jpeg_data.len() > 500_000 { // 如果大于 500KB
@@ -127,7 +126,7 @@ impl ScreenCapturer {
 
     fn compress_jpeg(&self, original_data: &[u8], quality: u8) -> Result<Vec<u8>> {
         // 解码原始 JPEG 数据
-        let img = image::load_from_memory(original_data)?;
+        let img = image::load_from_memory(original_data).map_err(|e|e.to_string())?;
         let mut compressed_data = Vec::new();
 
         // 使用 turbojpeg 或降低分辨率来实现质量调整
@@ -139,7 +138,7 @@ impl ScreenCapturer {
         );
 
         // 重新编码为 JPEG
-        scaled.write_to(&mut Cursor::new(&mut compressed_data), ImageFormat::Jpeg)?;
+        scaled.write_to(&mut Cursor::new(&mut compressed_data), ImageFormat::Jpeg).map_err(|e|e.to_string())?;
 
         Ok(compressed_data)
     }

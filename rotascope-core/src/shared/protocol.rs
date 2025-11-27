@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::Result;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
@@ -40,10 +41,10 @@ pub enum ServerMessage {
 }
 
 // 序列化辅助函数
-pub fn serialize_message<T: Serialize>(msg: &T) -> Result<Vec<u8>, bincode::Error> {
-    bincode::serialize(msg)
+pub fn serialize_message<T: Serialize>(msg: &T) -> Result<Vec<u8>> {
+    serde_json::to_vec(msg).map_err(|e|e.to_string())
 }
 
-pub fn deserialize_message<T: for<'a> Deserialize<'a>>(data: &[u8]) -> Result<T, bincode::Error> {
-    bincode::deserialize(data)
+pub fn deserialize_message<T: for<'a> Deserialize<'a>>(data: &[u8]) -> Result<T> {
+   serde_json::from_slice(data).map_err(|e|e.to_string())
 }
