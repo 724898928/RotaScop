@@ -148,15 +148,17 @@ impl MultiDisplayServer {
                     ServerMessage::VideoFrame { data, .. } => {
                         println!("send_msg2client message data.len():{:?}",data.len() );
                         if let Err(e) = writer.send(Message::binary(data)).await {
+                           // writer.close();
                             log::error!("Error sending binary frame: {}", e);
-                            // break;
+                             break;
                         }
                     }
                     other_message => {
                         if let Ok(text) = serialize_message(&other_message) {
                             if let Err(e) = writer.send(Message::Text(Utf8Bytes::try_from(text).unwrap())).await {
+                             //   writer.close();
                                 log::error!("Error sending text message: {}", e);
-                            //    break;
+                                break;
                             }
                         }
                     }

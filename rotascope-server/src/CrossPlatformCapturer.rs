@@ -39,35 +39,42 @@ impl CrossPlatformCapturer {
     }
 
     pub fn capture_frame(&mut self) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>> {
+        use image::RgbaImage;
+        use std::io::ErrorKind::WouldBlock;
         loop {
             match self.capturer.frame() {
                 Ok(buffer) => {
-                    let mut image_data = Vec::with_capacity(self.width * &self.height * 4);
+                    let expected = self.width * self.height * 4;
+                    if buffer.len() != expected {
+                        return Err(format!(
+                        "Invalid buffer length {}, expected {}",
+                        buffer.len(),
+                        expected
+                    ));
+                    }
 
-                    for i in 0..self.width * self.height {
-                        let base = i * 4;
-                        if base + 3 < buffer.len() {
-                            // BGRA → RGBA
-                            image_data.push(buffer[base + 2]); // R
-                            image_data.push(buffer[base + 1]); // G
-                            image_data.push(buffer[base]);     // B
-                            image_data.push(255);              // A
+                    let mut rgba = Vec::with_capacity(expected);
+
+                    // ---- 高速 BGRA → RGBA 转换（无 bounds check）----
+                    for chunk in buffer.chunks_exact(4) {
+                        unsafe {
+                            // chunk: [B, G, R, X]
+                            let b = *chunk.get_unchecked(0);
+                            let g = *chunk.get_unchecked(1);
+                            let r = *chunk.get_unchecked(2);
+
+                            rgba.extend_from_slice(&[r, g, b, 255]);
                         }
                     }
 
-                    return Ok(
-                        ImageBuffer::from_raw(
-                            self.width as u32,
-                            self.height as u32,
-                            image_data,
-                        )
-                            .ok_or("Failed to create image buffer")?,
-                    );
+                    let img = RgbaImage::from_raw(self.width as u32, self.height as u32, rgba)
+                        .ok_or_else(||"Failed to create image buffer".to_string())?;
+
+                    return Ok(img);
                 }
 
                 Err(ref e) if e.kind() == WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(1));
-                    continue;
+                    std::thread::sleep(Duration::from_micros(500)); // 更短延迟
                 }
 
                 Err(e) => return Err(e.to_string()),
@@ -76,30 +83,33 @@ impl CrossPlatformCapturer {
     }
 
 
+
 }
 pub fn compress_frame(frame: &ImageBuffer<Rgba<u8>, Vec<u8>>) -> Result<Vec<u8>> {
     use image::codecs::jpeg::JpegEncoder;
-    let mut compressed_data = Vec::new();
-    // ---- RGBA → RGB ----
-    let mut rgb_data = Vec::with_capacity((frame.width() * frame.height() * 3) as usize);
-    for pixel in frame.pixels() {
-        rgb_data.push(pixel[0]); // R
-        rgb_data.push(pixel[1]); // G
-        rgb_data.push(pixel[2]); // B
+    use image::ExtendedColorType;
+
+    let w = frame.width();
+    let h = frame.height();
+    let buffer = frame.as_raw(); // RGBA slice
+
+    let mut rgb = Vec::with_capacity((w * h * 3) as usize);
+
+    // ---- 高速 RGBA → RGB ----
+    for px in buffer.chunks_exact(4) {
+        rgb.extend_from_slice(&px[..3]); // 直接 [R,G,B]
     }
-    // ---- JPEG 编码 ----
-    let mut encoder = JpegEncoder::new_with_quality(&mut compressed_data, 70);
+
+    let mut out = Vec::new();
+    let mut encoder = JpegEncoder::new_with_quality(&mut out, 70);
+
     encoder
-        .encode(
-            &rgb_data,
-            frame.width(),
-            frame.height(),
-            ExtendedColorType::Rgb8
-        )
+        .encode(&rgb, w, h, ExtendedColorType::Rgb8)
         .map_err(|e| e.to_string())?;
 
-    Ok(compressed_data)
+    Ok(out)
 }
+
 
 
 
