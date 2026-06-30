@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use crate::Result;
 
+pub trait ToMsg{
+    fn to_msg<T: Serialize>(&self, msg: &T) -> Result<Vec<u8>>;
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
     SensorData {
@@ -38,6 +42,12 @@ pub enum ServerMessage {
     Error {
         message: String,
     },
+}
+
+impl ToMsg for ServerMessage {
+    fn to_msg<T: Serialize>(&self,msg: &T)-> Result<Vec<u8>> {
+        serialize_message(msg)
+    }
 }
 
 // 序列化辅助函数

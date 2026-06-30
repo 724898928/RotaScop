@@ -1,17 +1,17 @@
+use image::{ExtendedColorType, ImageBuffer, Rgba};
+use rotascope_core::Result;
+use scrap::{Capturer, Display};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use scrap::{Capturer, Display};
-use image::{ExtendedColorType, ImageBuffer, Rgba};
 use std::io::ErrorKind::WouldBlock;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
-use rotascope_core::Result;
 
 pub struct CrossPlatformCapturer {
     capturer: Capturer,
-    width: usize,
-    height: usize,
+    pub width: usize,
+    pub height: usize,
 }
 
 impl Debug for CrossPlatformCapturer {
@@ -28,9 +28,7 @@ impl CrossPlatformCapturer {
         let display = Display::primary().map_err(|e| e.to_string())?;
         let width = display.width();
         let height = display.height();
-
         let capturer = Capturer::new(display).map_err(|e| e.to_string())?;
-
         Ok(Self {
             capturer,
             width,
@@ -38,39 +36,38 @@ impl CrossPlatformCapturer {
         })
     }
 
-    pub fn capture_frame(&mut self) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>> {
+    pub fn capture_frame(&mut self) -> Result<Vec<u8>> {
         use image::RgbaImage;
         use std::io::ErrorKind::WouldBlock;
         loop {
             match self.capturer.frame() {
                 Ok(buffer) => {
-                    let expected = self.width * self.height * 4;
-                    if buffer.len() != expected {
-                        return Err(format!(
-                        "Invalid buffer length {}, expected {}",
-                        buffer.len(),
-                        expected
-                    ));
-                    }
-
-                    let mut rgba = Vec::with_capacity(expected);
-
-                    // ---- 高速 BGRA → RGBA 转换（无 bounds check）----
-                    for chunk in buffer.chunks_exact(4) {
-                        unsafe {
-                            // chunk: [B, G, R, X]
-                            let b = *chunk.get_unchecked(0);
-                            let g = *chunk.get_unchecked(1);
-                            let r = *chunk.get_unchecked(2);
-
-                            rgba.extend_from_slice(&[r, g, b, 255]);
-                        }
-                    }
-
-                    let img = RgbaImage::from_raw(self.width as u32, self.height as u32, rgba)
-                        .ok_or_else(||"Failed to create image buffer".to_string())?;
-
-                    return Ok(img);
+                    // let expected = self.width * self.height * 4;
+                    // if buffer.len() != expected {
+                    //     return Err(format!(
+                    //     "Invalid buffer length {}, expected {}",
+                    //     buffer.len(),
+                    //     expected
+                    // ));
+                    // }
+                    //
+                    // let mut rgba = Vec::with_capacity(expected);
+                    //
+                    // // ---- 高速 BGRA → RGBA 转换（无 bounds check）----
+                    // for chunk in buffer.chunks_exact(4) {
+                    //     unsafe {
+                    //         // chunk: [B, G, R, X]
+                    //         let b = *chunk.get_unchecked(0);
+                    //         let g = *chunk.get_unchecked(1);
+                    //         let r = *chunk.get_unchecked(2);
+                    //
+                    //         rgba.extend_from_slice(&[r, g, b, 255]);
+                    //     }
+                    // }
+                    //
+                    // let img = RgbaImage::from_raw(self.width as u32, self.height as u32, rgba)
+                    //     .ok_or_else(||"Failed to create image buffer".to_string())?;
+                    return Ok(buffer.to_vec());
                 }
 
                 Err(ref e) if e.kind() == WouldBlock => {
@@ -83,11 +80,10 @@ impl CrossPlatformCapturer {
     }
 
 
-
 }
 pub fn compress_frame(frame: &ImageBuffer<Rgba<u8>, Vec<u8>>) -> Result<Vec<u8>> {
-    use image::codecs::jpeg::JpegEncoder;
     use image::ExtendedColorType;
+    use image::codecs::jpeg::JpegEncoder;
 
     let w = frame.width();
     let h = frame.height();
@@ -109,11 +105,6 @@ pub fn compress_frame(frame: &ImageBuffer<Rgba<u8>, Vec<u8>>) -> Result<Vec<u8>>
 
     Ok(out)
 }
-
-
-
-
-
 
 //
 // // 高性能屏幕流服务器

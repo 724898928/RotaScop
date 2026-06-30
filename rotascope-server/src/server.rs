@@ -1,23 +1,24 @@
+use crate::CrossPlatformCapturer::CrossPlatformCapturer;
+use crate::CrossPlatformCapturer::compress_frame;
 use crate::virtual_display::VirtualDisplayManager;
 use futures::{SinkExt, StreamExt};
+use rotascope_core::Result;
 use rotascope_core::{
     ClientMessage, ServerMessage, SwitchDirection, deserialize_message, serialize_message,
 };
-use tokio::runtime::Runtime;
+use serde::Deserialize;
+use serde_json;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
+use tokio::time::interval;
 use tokio_tungstenite::accept_async;
 use tungstenite::{Message, Utf8Bytes};
-use crate::{CrossPlatformCapturer::CrossPlatformCapturer};
-use rotascope_core::Result;
-use serde_json;
-use tokio::time::interval;
-use crate::CrossPlatformCapturer::compress_frame;
 
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -30,7 +31,7 @@ pub struct MultiDisplayServer {
 
 impl MultiDisplayServer {
     pub fn new(display_count: u8) -> Result<Self> {
-      //  let capturer = Arc::new(ScreenCapturer::new()?);
+        //  let capturer = Arc::new(ScreenCapturer::new()?);
 
         let virtual_displays = Arc::new(VirtualDisplayManager::new(vec![
             (0, 1920, 1080),
@@ -39,7 +40,6 @@ impl MultiDisplayServer {
         ])?);
         let current_display = Arc::new(RwLock::new(0));
         let clients = Arc::new(Mutex::new(Vec::new()));
-
         Ok(Self {
             virtual_displays,
             current_display,
@@ -62,12 +62,13 @@ impl MultiDisplayServer {
         let server_arc = Arc::new(self.clone());
         // 启动屏幕捕获和流媒体任务
         let stream_arc = server_arc.clone();
-       let t1 = thread::spawn(move || {
+        let t1 = thread::spawn(move || {
             let rt = Runtime::new().unwrap();
             rt.block_on(async move {
                 let capturer = CrossPlatformCapturer::new_primary().unwrap();
                 stream_arc.start_streaming(capturer).await.unwrap()
-            })});
+            })
+        });
         let addr_owned = addr.to_string();
         let s = std::thread::spawn(move || {
             let rt = Runtime::new().unwrap();
@@ -88,7 +89,7 @@ impl MultiDisplayServer {
                 }
             });
         });
-       // t1.join().unwrap();
+        // t1.join().unwrap();
         s.join().unwrap();
         Ok(())
     }
@@ -130,6 +131,7 @@ impl MultiDisplayServer {
         Ok(())
     }
 
+    // 发送视频流到客户端
     fn send_msg2client(
         mut writer: futures::stream::SplitSink<
             tokio_tungstenite::WebSocketStream<TcpStream>,
@@ -137,26 +139,25 @@ impl MultiDisplayServer {
         >,
         mut rx: Receiver<ServerMessage>,
     ) -> JoinHandle<()> {
-        // 发送视频流到客户端
         let send_task = tokio::spawn(async move {
             println!("send_msg2client send_task");
             while let Some(message) = rx.recv().await {
                 println!("send_msg2client send_task recv message ");
-                let msg = serialize_message(&message).unwrap();
-               // println!("send_msg2client msg:{:?}",message );
                 match message {
                     ServerMessage::VideoFrame { data, .. } => {
-                        println!("send_msg2client message data.len():{:?}",data.len() );
+                        println!("send_msg2client message data.len():{:?}", data.len());
                         if let Err(e) = writer.send(Message::binary(data)).await {
-                           // writer.close();
                             log::error!("Error sending binary frame: {}", e);
-                             break;
+                            break;
                         }
                     }
                     other_message => {
                         if let Ok(text) = serialize_message(&other_message) {
-                            if let Err(e) = writer.send(Message::Text(Utf8Bytes::try_from(text).unwrap())).await {
-                             //   writer.close();
+                            if let Err(e) = writer
+                                .send(Message::Text(Utf8Bytes::try_from(text).unwrap()))
+                                .await
+                            {
+                                //   writer.close();
                                 log::error!("Error sending text message: {}", e);
                                 break;
                             }
@@ -184,8 +185,7 @@ impl MultiDisplayServer {
                         match msg {
                             Message::Text(text) => {}
                             Message::Binary(data) => {
-                                if let Ok(client_msg) =
-                                    deserialize_message::<ClientMessage>(&data)
+                                if let Ok(client_msg) = deserialize_message::<ClientMessage>(&data)
                                 {
                                     if let Err(e) =
                                         client_arc.handle_client_message(client_msg).await
@@ -236,10 +236,9 @@ impl MultiDisplayServer {
 
         let config_data = serialize_message(&config)?;
         writer
-            .send(Message::Binary(
-                config_data.into(),
-            ))
-            .await.map_err(|e|e.to_string())?;
+            .send(Message::Binary(config_data.into()))
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -287,26 +286,26 @@ impl MultiDisplayServer {
         Ok(())
     }
 
-    async fn start_streaming(&self, mut capturer:CrossPlatformCapturer) -> Result<()>{
+    async fn start_streaming(&self, mut capturer: CrossPlatformCapturer) -> Result<()> {
         println!("start_streaming");
-       // let mut interval = interval(Duration::from_millis(33)); // ~30fps
+        let mut interval = interval(Duration::from_millis(33)); // ~30fps
         loop {
-          //  interval.tick().await;
+            interval.tick().await;
             let current_display = *self.current_display.read().await;
             match capturer.capture_frame() {
                 Ok(frame_data) => {
                     println!("start_streaming frame_data");
                     let message = ServerMessage::VideoFrame {
                         display_index: current_display,
-                        width: frame_data.width(),
-                        height: frame_data.height(),
-                        data: compress_frame(&frame_data)?.to_vec(),
+                        width: capturer.width as u32,
+                        height: capturer.height as u32,
+                        data: frame_data.to_vec(),
                         timestamp: std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_millis() as u64,
                     };
-                   // println!("start_streaming frame_data data.len():{:?}", frame_data.to_vec().len() );
+                    // println!("start_streaming frame_data data.len():{:?}", frame_data.to_vec().len() );
                     // 发送给所有连接的客户端
                     // 先克隆出当前的 Sender 列表并释放锁，避免在发送时持有锁
                     let clients_vec = {

@@ -1,79 +1,55 @@
 import 'package:flutter/material.dart';
 
 class DisplayHUD extends StatelessWidget {
-  final int currentDisplay;
-  final int totalDisplays;
-  final double rotation;
-
   const DisplayHUD({
     super.key,
     required this.currentDisplay,
     required this.totalDisplays,
+    required this.fps,
     required this.rotation,
   });
 
+  final int currentDisplay;
+  final int totalDisplays;
+  final double fps;
+  final double rotation;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Text(
-            '显示器 ${currentDisplay + 1}/$totalDisplays',
+    final displayCount = totalDisplays < 1 ? 1 : totalDisplays;
+
+    return Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.58),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: DefaultTextStyle(
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 13,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '旋转: ${rotation.toStringAsFixed(1)}°',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // 旋转指示器
-          Container(
-            width: 200,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            child: Stack(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // 中心点
-                Positioned(
-                  left: 100,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                // 旋转指示
-                Positioned(
-                  left: 100 + (rotation.clamp(-30.0, 30.0) / 30.0 * 100),
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
+                const Icon(Icons.desktop_windows, size: 16),
+                const SizedBox(width: 6),
+                Text('显示器 ${currentDisplay + 1}/$displayCount'),
+                const SizedBox(width: 14),
+                const Icon(Icons.speed, size: 16),
+                const SizedBox(width: 6),
+                Text('${fps.toStringAsFixed(0)} FPS'),
+                const SizedBox(width: 14),
+                const Icon(Icons.screen_rotation_alt, size: 16),
+                const SizedBox(width: 6),
+                Text(rotation.toStringAsFixed(1)),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

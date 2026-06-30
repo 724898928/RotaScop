@@ -18,7 +18,7 @@ class RotascopeApp extends StatelessWidget {
         title: 'Rotascope',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
+            seedColor: const Color(0xFF32D2C6),
             brightness: Brightness.dark,
           ),
           useMaterial3: true,
@@ -26,7 +26,7 @@ class RotascopeApp extends StatelessWidget {
         ),
         darkTheme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
+            seedColor: const Color(0xFF32D2C6),
             brightness: Brightness.dark,
           ),
           useMaterial3: true,

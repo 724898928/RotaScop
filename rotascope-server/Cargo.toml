@@ -4,26 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1"
-bincode = "2"
-image = "0.25"
-x11rb = "0.13" # Linux 屏幕捕获
-env_logger = "0.11"
-log = "0.4"
-rotascope-core = { path = "../rotascope-core" }
-tokio-util = { version = "0.7.17", features = ["codec"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "time"] }
+warp = { version = "0.3", features = ["websocket"] }
 futures = "0.3"
-screenshots = "0.8"
-tungstenite = "0.28.0"
-tokio-tungstenite = "0.28.0"
-chrono = "0.4.42"
-windows = { version = "0.54", features = ["Win32_AI", "Win32_Devices_Display", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dxgi", "Win32_Graphics_Direct3D11"] }
-scrap = "0.5.0"
-jpeg-encoder = "0.6.1"
-dashmap = "7.0.0-rc2"
-base64 = "0.22.1"
+xcap = "0.2"          # 屏幕捕获（跨平台）
+image = "0.24"        # 图像处理与 JPEG 编码
+anyhow = "1.0"
+bytes = "1.4"
+env_logger = "0.10"
+log = "0.4"
 
 
 [profile.release]

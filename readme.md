@@ -1,23 +1,52 @@
 # RotaScope
 
-## 产品概念简述
+RotaScope 旨在把 Android 手机作为电脑的 USB 扩展显示器使用。
 
-    目标：
-        将一台安卓手机变成一个“虚拟多屏头显设备”，可作为个人便携式开发/工作环境使用。
-        用户戴上头显（或将手机固定在眼前），通过分屏显示 + 体感或蓝牙外设交互，实现：
+当前代码提供一个可运行的 MVP：
 
-        左右眼双屏视觉（VR-like）
-        多窗口编程、调试、笔记、终端环境
-        连接外部键盘鼠标
-        甚至通过云端 Rust 服务端获取计算能力
+- `rotascope_app/`：Flutter Android 显示端，默认连接 USB 反向端口 `127.0.0.1:8083/ws`。
+- `rotascope-server/`：Rust PC 服务端，捕获指定显示器并通过 WebSocket 推送 JPEG 帧。
+- `scripts/start_usb_display.ps1`：Windows 启动脚本，自动配置 `adb reverse` 并启动服务端。
+- `VirtualDisplayDriver/`：Windows 虚拟显示驱动雏形，后续用于让系统真正出现一块可扩展桌面的显示器。
 
-## 项目结构
+快速启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_usb_display.ps1
 ```
-rotascope/                    # 主项目目录
-├── rotascope-server/         # Rust PC服务端
-├── rotascope-app/           # Flutter移动端  
-├── rotascope-core/          # 共享核心库
-├── docs/                    # 文档
-└── scripts/                 # 构建脚本
 
+然后在 Android 设备上运行 Flutter App：
+
+```powershell
+cd .\rotascope_app
+flutter run -d <android-device-id>
+```
+
+详细说明见 [docs/usb-extended-display.md](docs/usb-extended-display.md)。
+
+注意：Android App 本身不能让 Windows 新增显示器。真正的扩展屏需要 PC 端虚拟显示驱动安装成功后，再由 RotaScope 服务端捕获该虚拟显示器并推送到手机。
+
+```
+┌──────────────── WINDOWS ────────────────┐
+│  IDD Virtual Display Driver (C++)      │
+│            ↓                           │
+│   DWM Render Target (GPU Surface)     │
+│            ↓                           │
+│   DXGI Capture (Zero Copy)            │
+│            ↓                           │
+│   NVENC Encoder (Low Latency)         │
+│            ↓                           │
+│   USB Transport (WinUSB / ADB)        │
+│            ↓                           │
+│   Input Controller (SendInput)        │
+└───────────────┬────────────────────────┘
+                │ USB 3.0
+┌───────────────▼────────────────────────┐
+│             ANDROID                    │
+│  MediaCodec H264 Decoder              │
+│            ↓                          │
+│  SurfaceView / OpenGL Renderer        │
+│            ↓                          │
+│  Touch → Input Back Channel           │
+└────────────────────────────────────────┘
 ```
