@@ -1,52 +1,86 @@
 # RotaScope
 
-RotaScope 旨在把 Android 手机作为电脑的 USB 扩展显示器使用。
+RotaScope 把 Android 手机作为电脑的 USB 扩展显示器使用。
 
-当前代码提供一个可运行的 MVP：
+## 项目结构
 
-- `rotascope_app/`：Flutter Android 显示端，默认连接 USB 反向端口 `127.0.0.1:8083/ws`。
-- `rotascope-server/`：Rust PC 服务端，捕获指定显示器并通过 WebSocket 推送 JPEG 帧。
-- `scripts/start_usb_display.ps1`：Windows 启动脚本，自动配置 `adb reverse` 并启动服务端。
-- `VirtualDisplayDriver/`：Windows 虚拟显示驱动雏形，后续用于让系统真正出现一块可扩展桌面的显示器。
+```
+rotascope_app/         Flutter Android 显示端
+rotascope-server/      Rust PC 服务端 MVP（WebSocket + JPEG）
+rotascope_server2/     Rust PC 服务端 v2（QUIC + H.264，开发中）
+rotascope-core/        共享协议库
+VirtualDisplayDriver/  Windows 虚拟显示驱动（IDD 雏形）
+scripts/               启动脚本
+docs/                  文档
+```
 
-快速启动：
+## 快速启动（MVP）
+
+### 1. 电脑端
 
 ```powershell
+# Windows
 powershell -ExecutionPolicy Bypass -File .\scripts\start_usb_display.ps1
 ```
 
-然后在 Android 设备上运行 Flutter App：
+```bash
+# macOS / Linux
+chmod +x scripts/start_usb_display.sh
+./scripts/start_usb_display.sh
+```
 
-```powershell
-cd .\rotascope_app
+### 2. Android 端
+
+```bash
+cd rotascope_app
 flutter run -d <android-device-id>
 ```
 
-详细说明见 [docs/usb-extended-display.md](docs/usb-extended-display.md)。
+手机端默认连接 `ws://127.0.0.1:8083/ws`（通过 `adb reverse` 映射到电脑）。
 
-注意：Android App 本身不能让 Windows 新增显示器。真正的扩展屏需要 PC 端虚拟显示驱动安装成功后，再由 RotaScope 服务端捕获该虚拟显示器并推送到手机。
+### 3. 功能
+
+- 全屏显示电脑画面（JPEG 流，15 FPS）
+- 触摸回传：手机触摸事件发送到电脑，支持鼠标模拟（v2）
+- 陀螺仪切屏：旋转手机切换显示器
+- 自动重连：指数退避重连
+- HUD 显示：FPS、显示器编号、旋转角度
+
+## 架构
 
 ```
 ┌──────────────── WINDOWS ────────────────┐
-│  IDD Virtual Display Driver (C++)      │
-│            ↓                           │
-│   DWM Render Target (GPU Surface)     │
-│            ↓                           │
-│   DXGI Capture (Zero Copy)            │
-│            ↓                           │
-│   NVENC Encoder (Low Latency)         │
-│            ↓                           │
-│   USB Transport (WinUSB / ADB)        │
-│            ↓                           │
-│   Input Controller (SendInput)        │
-└───────────────┬────────────────────────┘
+│  IDD Virtual Display Driver (C++)       │
+│            ↓                            │
+│   DWM Render Target                     │
+│            ↓                            │
+│   DXGI / scrap Capture                  │
+│            ↓                            │
+│   JPEG 编码  /  H.264 编码              │
+│            ↓                            │
+│   USB Transport (ADB reverse)           │
+│            ↓                            │
+│   Input Controller (SendInput)          │
+└───────────────┬─────────────────────────┘
                 │ USB 3.0
-┌───────────────▼────────────────────────┐
-│             ANDROID                    │
-│  MediaCodec H264 Decoder              │
-│            ↓                          │
-│  SurfaceView / OpenGL Renderer        │
-│            ↓                          │
-│  Touch → Input Back Channel           │
-└────────────────────────────────────────┘
+┌───────────────▼─────────────────────────┐
+│              ANDROID                    │
+│  Image.memory / MediaCodec H264         │
+│            ↓                            │
+│  SurfaceView + GestureDetector          │
+│            ↓                            │
+│  Touch → WebSocket / QUIC 回传          │
+└─────────────────────────────────────────┘
 ```
+
+## 开发状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| rotascope_app | ✅ 完成 | Flutter 显示端，JPEG 解码，触摸回传，陀螺仪切屏 |
+| rotascope-server | ✅ MVP | 屏幕捕获 → WebSocket → JPEG 推流，15 FPS |
+| rotascope_server2 | 🚧 开发中 | QUIC 传输 + H.264 编码（OpenH264）+ SendInput 注入 |
+| rotascope-core | ✅ 完成 | 协议类型定义 |
+| VirtualDisplayDriver | 🚧 开发中 | Windows IDD 驱动框架，支持 CMake 构建 |
+
+详细说明见 [docs/usb-extended-display.md](docs/usb-extended-display.md)。

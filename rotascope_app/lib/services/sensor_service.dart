@@ -25,7 +25,7 @@ class SensorService extends ChangeNotifier {
   void startSensors() {
     if (_sensorsActive) return;
 
-    _gyroscopeSubscription = gyroscopeEvents.listen((event) {
+    _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
       _rotationX = event.x;
       _rotationY = event.y;
       _rotationZ = event.z;

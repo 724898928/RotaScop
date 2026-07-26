@@ -1,176 +1,117 @@
-use std::io::Cursor;
-use image::{ ImageBuffer, ImageFormat, Rgba};
-use screenshots::Screen;
-use rotascope_core::Result;
+use std::env;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use crate::virtual_display::{VirtualDisplay};
-#[derive(Debug,Clone)]
-pub struct FrameData {
-    pub width: u32,
-    pub height: u32,
-    pub jpeg_data: Vec<u8>,
-}
+use anyhow::{Context, Result};
+use bytes::Bytes;
+use image::{codecs::jpeg::JpegEncoder, RgbaImage};
+use log::{error, info, warn};
+use scrap::{Capturer, Display};
+use tokio::sync::broadcast;
+use tokio::time::sleep;
 
-#[cfg(target_os = "windows")]
-#[derive(Debug,Clone)]
-pub struct ScreenCapturer {
-    // Windows DXGI 捕获实现
-}
+const TARGET_FPS: u64 = 15;
 
-#[cfg(target_os = "linux")]
-pub struct ScreenCapturer {
-    // Linux X11 捕获实现
-}
+pub async fn capture_loop(tx: Arc<broadcast::Sender<Bytes>>) -> Result<()> {
+    let frame_duration = Duration::from_millis(1000 / TARGET_FPS);
+    let (mut capturer, width, height) = select_monitor()?;
 
-#[cfg(target_os = "macos")]
-pub struct ScreenCapturer {
-    // macOS 捕获实现
-}
-
-impl ScreenCapturer {
-    pub fn new() -> Result<Self> {
-        Ok(Self {})
-    }
-    pub fn capture_to_display(display: &mut VirtualDisplay) {
-        // Example: capture main screen
-        let screen = Screen::from_point(0, 0).unwrap();
-        let image = screen.capture().unwrap();
-
-        // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
-        display.framebuffer = image.into_raw();
-    }
-
-    pub fn capture_data(&self) -> Result<Vec<u8>> {
-        // Example: capture main screen
-        let screen = Screen::from_point(0, 0).unwrap();
-        let image = screen.capture().unwrap();
-
-        // Disambiguate the `buffer` call (avoid the `SinkExt::buffer` name clash)
-        Ok(image.into_raw())
-    }
-
-    // pub async fn capture_display(&self, display_index: u8) -> Result<FrameData> {
-    //     // 这里实现具体的屏幕捕获逻辑
-    //     // 对于演示，我们创建一个测试图像
-    //
-    //     let width = 1920;
-    //     let height = 1080;
-    //
-    //     // 创建测试图像 - 实际实现应该捕获真实屏幕
-    //     let mut img = ImageBuffer::new(width, height);
-    //     // 填充颜色以区分不同的显示器
-    //     let color = match display_index {
-    //         0 => [255, 0, 0],     // 红色
-    //         1 => [0, 255, 0],     // 绿色
-    //         2 => [0, 0, 255],     // 蓝色
-    //         _ => [128, 128, 128], // 灰色
-    //     };
-    //
-    //     for (_, _, pixel) in img.enumerate_pixels_mut() {
-    //         *pixel = Rgba([color[0], color[1], color[2], 255]);
-    //     }
-    //
-    //     // 添加显示器编号文本
-    //     self.add_display_text(&mut img, display_index);
-    //
-    //     // 编码为JPEG
-    //     let mut jpeg_data = self.capture_data()?;
-    //     // 将 RGBA ImageBuffer 转换为 RGB（去掉 alpha），因为 JPEG 不支持 Rgba8
-    //     let rgb_img: image::RgbImage = DynamicImage::ImageRgba8(img).to_rgb8();
-    //     let raw = rgb_img.into_raw();
-    //     JpegEncoder::new(&mut jpeg_data).encode(
-    //         &raw,
-    //         width,
-    //         height,
-    //         image::ColorType::Rgb8.into(),
-    //     )?;
-    //
-    //     Ok(FrameData {
-    //         width,
-    //         height,
-    //         jpeg_data,
-    //     })
-    // }
-
-    pub async fn capture_display(&self, display_index: u8) -> Result<FrameData> {
-        let width = 1920;
-        let height = 1080;
-
-        // 创建测试图像 - 实际实现应该捕获真实屏幕
-        let img = ImageBuffer::from_vec(width, height,self.capture_data()?).unwrap();
-        // 编码为JPEG
-        // 使用更高效的 JPEG 编码，降低质量以减少文件大小
-        let mut jpeg_data = Vec::new();
-
-        // 将 ImageBuffer 转换为 DynamicImage
-        let dynamic_img = image::DynamicImage::ImageRgba8(img);
-
-        // 使用 image crate 的 JPEG 编码，设置质量参数
-        dynamic_img.write_to(&mut std::io::Cursor::new(&mut jpeg_data), ImageFormat::Jpeg).map_err(|e|e.to_string())?;
-
-        // 如果数据仍然太大，进行二次压缩
-        if jpeg_data.len() > 500_000 { // 如果大于 500KB
-            jpeg_data = self.compress_jpeg(&jpeg_data, 70)?; // 70% 质量
+    loop {
+        if tx.receiver_count() == 0 {
+            sleep(Duration::from_millis(250)).await;
+            continue;
         }
 
-        log::debug!("Generated JPEG: {}x{}, {} bytes", width, height, jpeg_data.len());
-        println!("Generated JPEG: {}x{}, {} bytes", width, height, jpeg_data.len());
+        let start = Instant::now();
 
-        Ok(FrameData {
-            width,
-            height,
-            jpeg_data,
-        })
+        match capture_frame(&mut capturer, width, height) {
+            Ok(jpeg_bytes) => {
+                let _ = tx.send(Bytes::from(jpeg_bytes));
+            }
+            Err(e) => {
+                error!("capture error: {e:?}");
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+
+        let elapsed = start.elapsed();
+        if elapsed < frame_duration {
+            sleep(frame_duration - elapsed).await;
+        }
+    }
+}
+
+fn select_monitor() -> Result<(Capturer, usize, usize)> {
+    let selected_index = env::var("ROTASCOPE_DISPLAY_INDEX")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let displays = Display::all()
+        .map_err(|e| anyhow::anyhow!("failed to enumerate displays: {e}"))?;
+
+    if displays.is_empty() {
+        anyhow::bail!("no displays found");
     }
 
+    let count = displays.len();
+    let index = if selected_index >= count {
+        warn!("ROTASCOPE_DISPLAY_INDEX={selected_index} is out of range; using display 0 of {count}");
+        0
+    } else {
+        selected_index
+    };
 
-    fn compress_jpeg(&self, original_data: &[u8], quality: u8) -> Result<Vec<u8>> {
-        // 解码原始 JPEG 数据
-        let img = image::load_from_memory(original_data).map_err(|e|e.to_string())?;
-        let mut compressed_data = Vec::new();
+    let display = displays
+        .into_iter()
+        .nth(index)
+        .context("selected display not found")?;
 
-        // 使用 turbojpeg 或降低分辨率来实现质量调整
-        // 这里我们通过缩小图像来实现压缩效果
-        let scaled = img.resize(
-            (img.width() * quality as u32) / 100,
-            (img.height() * quality as u32) / 100,
-            image::imageops::FilterType::Lanczos3,
-        );
+    let width = display.width();
+    let height = display.height();
 
-        // 重新编码为 JPEG
-        scaled.write_to(&mut Cursor::new(&mut compressed_data), ImageFormat::Jpeg).map_err(|e|e.to_string())?;
+    let capturer = Capturer::new(display)
+        .map_err(|e| anyhow::anyhow!("failed to create capturer: {e}"))?;
 
-        Ok(compressed_data)
-    }
+    info!("Capturing display index {index}: {width}x{height}");
+    Ok((capturer, width, height))
+}
 
-    fn add_display_text(&self, img: &mut ImageBuffer<Rgba<u8>, Vec<u8>>, display_index: u8) {
-        // 在实际实现中，可以使用 imageproc 添加文本
-        // 这里简化为修改一些像素来表示文本
-        let text_x = 100;
-        let text_y = 100;
+fn capture_frame(capturer: &mut Capturer, width: usize, height: usize) -> Result<Vec<u8>> {
+    use std::io::ErrorKind::WouldBlock;
 
-        for i in 0..50 {
-            for j in 0..50 {
-                if i < 10 || i > 40 || j < 10 || j > 40 {
-                    let x = text_x + i;
-                    let y = text_y + j;
-                    if x < img.width() && y < img.height() {
-                        img.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+    loop {
+        match capturer.frame() {
+            Ok(buffer) => {
+                let mut rgba = Vec::with_capacity(width * height * 4);
+
+                // BGRA -> RGBA conversion
+                for chunk in buffer.chunks(4) {
+                    if chunk.len() >= 3 {
+                        rgba.push(chunk[2]); // R
+                        rgba.push(chunk[1]); // G
+                        rgba.push(chunk[0]); // B
+                        rgba.push(255);      // A
                     }
                 }
+
+                let Some(image) = RgbaImage::from_raw(width as u32, height as u32, rgba) else {
+                    anyhow::bail!("failed to create image from captured data");
+                };
+
+                let mut jpeg_bytes = Vec::with_capacity(200_000);
+                let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, 72);
+                encoder.encode_image(&image)?;
+
+                return Ok(jpeg_bytes);
+            }
+            Err(ref e) if e.kind() == WouldBlock => {
+                std::thread::sleep(Duration::from_millis(1));
+                continue;
+            }
+            Err(e) => {
+                anyhow::bail!("capture failed: {e}");
             }
         }
     }
-}
-
-#[cfg(target_os = "windows")]
-impl ScreenCapturer {
-    // Windows 特定的捕获实现
-    // 使用 DXGI API
-}
-
-#[cfg(target_os = "linux")]
-impl ScreenCapturer {
-    // Linux 特定的捕获实现
-    // 使用 X11 或 Wayland API
 }

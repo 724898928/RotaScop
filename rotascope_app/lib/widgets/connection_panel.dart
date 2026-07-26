@@ -104,7 +104,7 @@ class _ConnectionPanelState extends State<ConnectionPanel> {
                           icon: const Icon(Icons.settings_input_component),
                         ),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.07),
+                        fillColor: Colors.white.withValues(alpha: 0.07),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -233,9 +233,9 @@ class _StatusPill extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.6)),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

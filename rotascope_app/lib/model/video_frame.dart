@@ -1,16 +1,15 @@
 
-// 视频帧数据模型
 import 'package:flutter/foundation.dart';
 
 class VideoFrame {
-  final int display_index;
+  final int displayIndex;
   final Uint8List data;
   final int width;
   final int height;
   final int timestamp;
 
   VideoFrame({
-    required this.display_index,
+    required this.displayIndex,
     required this.data,
     required this.width,
     required this.height,
@@ -19,7 +18,7 @@ class VideoFrame {
 
   factory VideoFrame.fromJson(Map<String, dynamic> json) {
     return VideoFrame(
-      display_index: json['display_index'],
+      displayIndex: json['display_index'],
       data: json['data'],
       width: json['width'],
       height: json['height'],

@@ -21,7 +21,7 @@ class DisplayHUD extends StatelessWidget {
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.58),
+          color: Colors.black.withValues(alpha: 0.58),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.white24),
         ),

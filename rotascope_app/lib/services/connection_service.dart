@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -302,6 +301,17 @@ class ConnectionService extends ChangeNotifier {
     _channel?.sink.add(jsonEncode({
       'type': 'SwitchDisplay',
       'direction': normalized,
+    }));
+  }
+
+  void sendTouchEvent(String eventType, double normalizedX, double normalizedY) {
+    if (!isConnected) return;
+
+    _channel?.sink.add(jsonEncode({
+      'type': 'TouchEvent',
+      'event': eventType,
+      'x': normalizedX,
+      'y': normalizedY,
     }));
   }
 

@@ -1,2 +1,23 @@
-/target
-.idea/*
+# Rust
+target/
+
+# Flutter
+rotascope_app/build/
+rotascope_app/.dart_tool/
+rotascope_app/.packages
+rotascope_app/.pub/
+rotascope_app/pubspec.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+*.sys
+*.cat
+*.o
