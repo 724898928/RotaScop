@@ -1,0 +1,20 @@
+# CMake generation dependency list for this directory.
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeCXXInformation.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeCommonLanguageInclude.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeGenericSystem.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeInitializeConfigs.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeLanguageInformation.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeRCInformation.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeSystemSpecificInformation.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/CMakeSystemSpecificInitialize.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Compiler/CMakeCommonCompilerMacros.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Compiler/MSVC-CXX.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Compiler/MSVC.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Platform/Windows-MSVC-CXX.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Platform/Windows-MSVC.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Platform/Windows.cmake
+A:/programFiles/cmake/cmake-3.24.4-windows-x86_64/share/cmake-3.24/Modules/Platform/WindowsPaths.cmake
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeLists.txt
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/3.24.4/CMakeCXXCompiler.cmake
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/3.24.4/CMakeRCCompiler.cmake
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/3.24.4/CMakeSystem.cmake

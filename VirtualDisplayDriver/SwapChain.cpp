@@ -1,121 +1,58 @@
 #include "Driver.h"
 
-NTSTATUS
-EvtSwapChainSetDevice(
-    IDDCX_SWAPCHAIN SwapChainObject,
-    const IDARG_IN_SETDEVICE* pInArgs
-)
-{
-    UNREFERENCED_PARAMETER(SwapChainObject);
-    UNREFERENCED_PARAMETER(pInArgs);
-
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS
-EvtSwapChainSetSwapChain(
-    IDDCX_SWAPCHAIN SwapChainObject,
-    const IDARG_IN_SETSWAPCHAIN* pInArgs
-)
-{
-    DEVICE_CONTEXT* deviceCtx;
-
-    deviceCtx = GetGlobalDeviceContext();
-
-    if (deviceCtx != NULL)
-    {
-        deviceCtx->SwapChain = pInArgs->SwapChain;
-    }
-
-    UNREFERENCED_PARAMETER(SwapChainObject);
-
-    return STATUS_SUCCESS;
-}
+//
+// SwapChain.cpp - Frame acquisition and processing
+//
+// The real IddCx model:
+//   1. OS calls EvtMonitorAssignSwapChain with hSwapChain + hNextSurfaceAvailable event
+//   2. Driver calls IddCxSwapChainSetDevice with IDXGIDevice*
+//   3. Driver loops: wait on event -> IddCxSwapChainReleaseAndAcquireBuffer
+//      -> process frame -> IddCxSwapChainFinishedProcessingFrame
+//
+// Since IddCx is user-mode only, these are stubs. The actual frame processing
+// is handled by the user-mode companion (RotaScopeCompanion.exe).
+//
 
 NTSTATUS
-EvtSwapChainReleaseSwapChain(
-    IDDCX_SWAPCHAIN SwapChainObject
+ProcessNextFrame(
+    _In_ DEVICE_CONTEXT* DeviceCtx
 )
 {
-    DEVICE_CONTEXT* deviceCtx;
-
-    deviceCtx = GetGlobalDeviceContext();
-
-    if (deviceCtx != NULL)
-    {
-        deviceCtx->SwapChain = NULL;
-    }
-
-    UNREFERENCED_PARAMETER(SwapChainObject);
-
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS
-EvtSwapChainProcessFrame(
-    IDDCX_SWAPCHAIN SwapChainObject,
-    const IDARG_IN_PROCESSFRAME* pInArgs
-)
-{
-    DEVICE_CONTEXT* deviceCtx;
-    IDARG_IN_RELEASEANDACQUIREBUFFER acquireIn = { 0 };
     IDARG_OUT_RELEASEANDACQUIREBUFFER acquireOut = { 0 };
-    NTSTATUS status;
+    HRESULT hr;
 
-    deviceCtx = GetGlobalDeviceContext();
-
-    if (deviceCtx == NULL)
+    if (DeviceCtx == NULL || DeviceCtx->SwapChain == NULL)
     {
         return STATUS_UNSUCCESSFUL;
     }
 
-    UNREFERENCED_PARAMETER(SwapChainObject);
-    UNREFERENCED_PARAMETER(pInArgs);
-
-    acquireIn.Size = sizeof(acquireIn);
-
-    status = IddCxSwapChainReleaseAndAcquireBuffer(
-        deviceCtx->SwapChain,
-        &acquireIn,
+    hr = IddCxSwapChainReleaseAndAcquireBuffer(
+        DeviceCtx->SwapChain,
         &acquireOut
     );
 
-    if (!NT_SUCCESS(status))
+    if (hr == E_PENDING)
     {
-        return status;
+        return STATUS_PENDING;
     }
 
+    if (FAILED(hr))
     {
-        IDDCX_SWAPCHAIN_BUFFER_INFO bufferInfo = { 0 };
-        SIZE_T infoSize;
-
-        bufferInfo.Size = sizeof(bufferInfo);
-
-        status = IddCxSwapChainGetBufferInfo(
-            deviceCtx->SwapChain,
-            acquireOut.BufferIndex,
-            &bufferInfo,
-            sizeof(bufferInfo),
-            &infoSize
-        );
-
-        if (NT_SUCCESS(status) &&
-            bufferInfo.pSurface != NULL &&
-            bufferInfo.FrameBufferSize > 0)
-        {
-            SetSharedFrame(
-                deviceCtx,
-                (const BYTE*)bufferInfo.pSurface,
-                bufferInfo.FrameBufferWidth,
-                bufferInfo.FrameBufferHeight,
-                bufferInfo.FrameBufferStride
-            );
-        }
+        return STATUS_UNSUCCESSFUL;
     }
 
-    status = IddCxSwapChainFinishedProcessingFrame(
-        deviceCtx->SwapChain
+    // MetaData.pSurface is an IDXGIResource* containing the frame.
+    // In a real driver, we'd map this surface, copy pixel data to shared memory.
+    // For the stub, just signal that a frame was processed.
+
+    hr = IddCxSwapChainFinishedProcessingFrame(
+        DeviceCtx->SwapChain
     );
 
-    return status;
+    if (FAILED(hr))
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    return STATUS_SUCCESS;
 }

@@ -1,0 +1,330 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9A9E5E3C-402E-30A0-8A7F-7BFDA703C037}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>VirtualDisplayDriver</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VirtualDisplayDriver.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VirtualDisplayDriver</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.sys</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VirtualDisplayDriver.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VirtualDisplayDriver</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.sys</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">VirtualDisplayDriver.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">VirtualDisplayDriver</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.sys</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">VirtualDisplayDriver.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">VirtualDisplayDriver</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.sys</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /kernel</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\hal.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\wmilib.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\..\um\x64\iddcx\1.10\iddcxstub.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfdriverentry.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfldr.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64 /DRIVER</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/flutter_pro/RotaScope/VirtualDisplayDriver/Debug/VirtualDisplayDriver.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/flutter_pro/RotaScope/VirtualDisplayDriver/Debug/VirtualDisplayDriver.pdb</ProgramDataBaseFile>
+      <SubSystem>Native</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /kernel</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\hal.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\wmilib.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\..\um\x64\iddcx\1.10\iddcxstub.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfdriverentry.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfldr.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64 /DRIVER</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/flutter_pro/RotaScope/VirtualDisplayDriver/Release/VirtualDisplayDriver.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/flutter_pro/RotaScope/VirtualDisplayDriver/Release/VirtualDisplayDriver.pdb</ProgramDataBaseFile>
+      <SubSystem>Native</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /kernel</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\hal.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\wmilib.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\..\um\x64\iddcx\1.10\iddcxstub.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfdriverentry.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfldr.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64 /DRIVER</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/flutter_pro/RotaScope/VirtualDisplayDriver/MinSizeRel/VirtualDisplayDriver.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/flutter_pro/RotaScope/VirtualDisplayDriver/MinSizeRel/VirtualDisplayDriver.pdb</ProgramDataBaseFile>
+      <SubSystem>Native</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /kernel</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_KERNEL_MODE=1;_AMD64_;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\iddcx\1.10;C:\Program Files (x86)\Windows Kits\10\Include\wdf\kmdf\1.35;D:\flutter_pro\RotaScope\VirtualDisplayDriver;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\hal.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\wmilib.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\..\um\x64\iddcx\1.10\iddcxstub.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfdriverentry.lib;C:\Program Files (x86)\Windows Kits\10\Lib\wdf\kmdf\x64\1.35\wdfldr.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64 /DRIVER</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/flutter_pro/RotaScope/VirtualDisplayDriver/RelWithDebInfo/VirtualDisplayDriver.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/flutter_pro/RotaScope/VirtualDisplayDriver/RelWithDebInfo/VirtualDisplayDriver.pdb</ProgramDataBaseFile>
+      <SubSystem>Native</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\bin\cmake.exe -SD:/flutter_pro/RotaScope/VirtualDisplayDriver -BD:/flutter_pro/RotaScope/VirtualDisplayDriver --check-stamp-file D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCXXInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCommonLanguageInclude.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeGenericSystem.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeInitializeConfigs.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeLanguageInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeRCInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInitialize.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\CMakeCommonCompilerMacros.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\WindowsPaths.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeCXXCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeRCCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\bin\cmake.exe -SD:/flutter_pro/RotaScope/VirtualDisplayDriver -BD:/flutter_pro/RotaScope/VirtualDisplayDriver --check-stamp-file D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCXXInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCommonLanguageInclude.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeGenericSystem.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeInitializeConfigs.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeLanguageInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeRCInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInitialize.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\CMakeCommonCompilerMacros.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\WindowsPaths.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeCXXCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeRCCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\bin\cmake.exe -SD:/flutter_pro/RotaScope/VirtualDisplayDriver -BD:/flutter_pro/RotaScope/VirtualDisplayDriver --check-stamp-file D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCXXInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCommonLanguageInclude.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeGenericSystem.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeInitializeConfigs.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeLanguageInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeRCInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInitialize.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\CMakeCommonCompilerMacros.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\WindowsPaths.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeCXXCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeRCCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\bin\cmake.exe -SD:/flutter_pro/RotaScope/VirtualDisplayDriver -BD:/flutter_pro/RotaScope/VirtualDisplayDriver --check-stamp-file D:/flutter_pro/RotaScope/VirtualDisplayDriver/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCXXInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeCommonLanguageInclude.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeGenericSystem.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeInitializeConfigs.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeLanguageInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeRCInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInformation.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\CMakeSystemSpecificInitialize.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\CMakeCommonCompilerMacros.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Compiler\MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC-CXX.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows-MSVC.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\Windows.cmake;A:\programFiles\cmake\cmake-3.24.4-windows-x86_64\share\cmake-3.24\Modules\Platform\WindowsPaths.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeCXXCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeRCCompiler.cmake;D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\3.24.4\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">D:\flutter_pro\RotaScope\VirtualDisplayDriver\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\Driver.cpp" />
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\Adapter.cpp" />
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\Device.cpp" />
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\Monitor.cpp" />
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\SwapChain.cpp" />
+    <ClCompile Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\Frame.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="D:\flutter_pro\RotaScope\VirtualDisplayDriver\ZERO_CHECK.vcxproj">
+      <Project>{80122A89-08FA-3753-A572-C22238595BCD}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

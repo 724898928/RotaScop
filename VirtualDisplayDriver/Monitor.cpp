@@ -2,14 +2,13 @@
 
 NTSTATUS
 EvtMonitorAssignSwapChain(
-    IDDCX_MONITOR MonitorObject,
-    const IDARG_IN_SETSWAPCHAIN* pInArgs,
-    IDARG_OUT_SETSWAPCHAIN* pOutArgs
+    _In_ IDDCX_MONITOR MonitorObject,
+    _In_ const IDARG_IN_SETSWAPCHAIN* pInArgs
 )
 {
     DEVICE_CONTEXT* deviceCtx;
     IDARG_IN_SWAPCHAINSETDEVICE setDevice = { 0 };
-    NTSTATUS status;
+    HRESULT hr;
 
     UNREFERENCED_PARAMETER(MonitorObject);
 
@@ -20,48 +19,45 @@ EvtMonitorAssignSwapChain(
         return STATUS_UNSUCCESSFUL;
     }
 
-    deviceCtx->SwapChain = pInArgs->SwapChain;
+    deviceCtx->SwapChain = pInArgs->hSwapChain;
+    deviceCtx->NextSurfaceAvailable = pInArgs->hNextSurfaceAvailable;
 
-    setDevice.Size = sizeof(setDevice);
-    setDevice.pEvtIddCxSwapChainSetDevice = EvtSwapChainSetDevice;
-    setDevice.pEvtIddCxSwapChainSetSwapChain = EvtSwapChainSetSwapChain;
-    setDevice.pEvtIddCxSwapChainReleaseSwapChain = EvtSwapChainReleaseSwapChain;
-    setDevice.pEvtIddCxSwapChainProcessFrame = EvtSwapChainProcessFrame;
+    // Note: IDARG_IN_SWAPCHAINSETDEVICE.pDevice would normally point to the
+    // IDXGIDevice. For our stub path, we pass NULL.
+    setDevice.pDevice = NULL;
 
-    status = IddCxSwapChainSetDevice(
+    hr = IddCxSwapChainSetDevice(
         deviceCtx->SwapChain,
         &setDevice
     );
 
-    if (!NT_SUCCESS(status))
+    if (FAILED(hr))
     {
         deviceCtx->SwapChain = NULL;
-        return status;
+        deviceCtx->NextSurfaceAvailable = NULL;
+        return STATUS_UNSUCCESSFUL;
     }
 
-    pOutArgs->Result = IDDCX_SETSWAPCHAIN_RESULT_OK;
-
-    DbgPrint("RotaScope: SwapChain assigned with callbacks\n");
+    DbgPrint("RotaScope: SwapChain assigned\n");
 
     return STATUS_SUCCESS;
 }
 
 NTSTATUS
 EvtMonitorUnassignSwapChain(
-    IDDCX_MONITOR MonitorObject,
-    const IDARG_OUT_RELEASESWAPCHAIN* pOutArgs
+    _In_ IDDCX_MONITOR MonitorObject
 )
 {
     DEVICE_CONTEXT* deviceCtx;
 
     UNREFERENCED_PARAMETER(MonitorObject);
-    UNREFERENCED_PARAMETER(pOutArgs);
 
     deviceCtx = GetGlobalDeviceContext();
 
     if (deviceCtx != NULL)
     {
         deviceCtx->SwapChain = NULL;
+        deviceCtx->NextSurfaceAvailable = NULL;
     }
 
     DbgPrint("RotaScope: SwapChain unassigned\n");

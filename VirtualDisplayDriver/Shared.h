@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ntddk.h>
-#include <d3dkmthk.h>
 
 #define SHARED_FRAME_BUFFER_SIZE (1920 * 1080 * 4)
 #define ROTASCOPE_DEVICE_NAME L"\\Device\\RotaScope"

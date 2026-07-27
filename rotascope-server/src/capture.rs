@@ -71,7 +71,7 @@ fn select_monitor() -> Result<(Capturer, usize, usize)> {
     let height = display.height();
 
     let capturer = Capturer::new(display)
-        .map_err(|e| anyhow::anyhow!("failed to create capturer: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("select_monitor failed to create capturer: {e}"))?;
 
     info!("Capturing display index {index}: {width}x{height}");
     Ok((capturer, width, height))

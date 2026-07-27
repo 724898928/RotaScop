@@ -1,0 +1,5 @@
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/VirtualDisplayDriver.dir
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/ALL_BUILD.dir
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/CMakeFiles/ZERO_CHECK.dir
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/companion/CMakeFiles/RotaScopeCompanion.dir
+D:/flutter_pro/RotaScope/VirtualDisplayDriver/build/companion/CMakeFiles/ALL_BUILD.dir

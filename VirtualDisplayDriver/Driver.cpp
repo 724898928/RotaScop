@@ -8,14 +8,14 @@ GetGlobalDeviceContext(VOID)
     return g_GlobalDeviceContext;
 }
 
-NTSTATUS
+extern "C"
+NTSTATUS NTAPI
 DriverEntry(
-    PDRIVER_OBJECT  DriverObject,
-    PUNICODE_STRING RegistryPath
+    _In_ PDRIVER_OBJECT  DriverObject,
+    _In_ PUNICODE_STRING RegistryPath
 )
 {
     WDF_DRIVER_CONFIG config;
-    IDD_CX_INIT_CONFIG iddConfig;
     NTSTATUS status;
 
     WDF_DRIVER_CONFIG_INIT(&config, EvtDriverDeviceAdd);
@@ -27,15 +27,6 @@ DriverEntry(
         &config,
         WDF_NO_HANDLE
     );
-
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-
-    IDD_CX_INIT_CONFIG_INIT(&iddConfig);
-
-    status = IddCxInitialize(DriverObject, &iddConfig);
 
     if (!NT_SUCCESS(status))
     {
@@ -75,6 +66,7 @@ EvtDriverDeviceAdd(
     deviceCtx->AdapterHandle = NULL;
     deviceCtx->MonitorHandle = NULL;
     deviceCtx->SwapChain = NULL;
+    deviceCtx->NextSurfaceAvailable = NULL;
     deviceCtx->SharedFrame = NULL;
     deviceCtx->FrameEventHandle = NULL;
     deviceCtx->FrameEventObject = NULL;
@@ -90,24 +82,41 @@ EvtDriverDeviceAdd(
 
     g_GlobalDeviceContext = deviceCtx;
 
+    // Initialize IddCx for this device
+    status = IddCxDeviceInitialize(device);
+
+    if (!NT_SUCCESS(status))
     {
-        IDDCX_ADAPTER adapter = { 0 };
+        DbgPrint("RotaScope: IddCxDeviceInitialize failed 0x%X\n", status);
+        return status;
+    }
+
+    // Start adapter initialization asynchronously
+    {
+        IDDCX_ADAPTER_CAPS adapterCaps = { 0 };
         IDARG_IN_ADAPTER_INIT adapterInit = { 0 };
+        IDARG_OUT_ADAPTER_INIT adapterOut = { 0 };
 
-        adapter.Size = sizeof(adapter);
+        adapterCaps.Size = sizeof(adapterCaps);
+        adapterCaps.MaxMonitorsSupported = 1;
+        adapterCaps.Flags = IDDCX_ADAPTER_FLAGS_USE_SMALLEST_MODE;
 
-        adapterInit.Adapter = &adapter;
-        adapterInit.pEvtIddCxAdapterInitFinished = EvtAdapterInitFinished;
+        adapterInit.WdfDevice = device;
+        adapterInit.pCaps = &adapterCaps;
+        adapterInit.ObjectAttributes = NULL;
 
-        status = IddCxAdapterCreate(device, &adapterInit, &deviceCtx->AdapterHandle);
+        status = IddCxAdapterInitAsync(&adapterInit, &adapterOut);
 
         if (!NT_SUCCESS(status))
         {
-            DbgPrint("RotaScope: IddCxAdapterCreate failed 0x%X\n", status);
+            DbgPrint("RotaScope: IddCxAdapterInitAsync failed 0x%X\n", status);
             return status;
         }
+
+        deviceCtx->AdapterHandle = adapterOut.AdapterObject;
     }
 
+    // Create IO queue for IOCTLs
     {
         WDFQUEUE queue;
         WDF_IO_QUEUE_CONFIG queueConfig;
@@ -131,6 +140,7 @@ EvtDriverDeviceAdd(
         deviceCtx->IoQueue = queue;
     }
 
+    // Create symbolic link
     {
         UNICODE_STRING symLink;
         RtlInitUnicodeString(&symLink, ROTASCOPE_SYMLINK);
@@ -147,8 +157,6 @@ EvtDriverDeviceAdd(
 
     return STATUS_SUCCESS;
 }
-
-EVT_WDF_DEVICE_CONTEXT_CLEANUP EvtDeviceContextCleanup;
 
 VOID
 EvtDeviceContextCleanup(

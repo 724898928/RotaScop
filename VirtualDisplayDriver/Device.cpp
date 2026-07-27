@@ -21,7 +21,7 @@ EvtIoDeviceControl(
     {
         case IOCTL_ROTASCOPE_GET_FRAME:
         {
-            SHARED_FRAME* frameBuffer;
+            PVOID frameBuffer;
             size_t bufSize;
 
             status = WdfRequestRetrieveOutputBuffer(Request, sizeof(SHARED_FRAME), &frameBuffer, &bufSize);
@@ -34,7 +34,7 @@ EvtIoDeviceControl(
 
                 if (deviceCtx->SharedFrame != NULL)
                 {
-                    RtlCopyMemory(frameBuffer, deviceCtx->SharedFrame, sizeof(SHARED_FRAME));
+                    RtlCopyMemory((SHARED_FRAME*)frameBuffer, deviceCtx->SharedFrame, sizeof(SHARED_FRAME));
                 }
 
                 KeReleaseSpinLock(&deviceCtx->FrameLock, oldIrql);
