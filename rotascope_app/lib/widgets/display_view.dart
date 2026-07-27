@@ -56,21 +56,23 @@ class _DisplayViewState extends State<DisplayView> {
                 _sendTouchEvent('up', Offset.zero, size);
               });
             },
-            child: Center(
-              child: Image.memory(
-                frame,
-                fit: BoxFit.contain,
-                gaplessPlayback: true,
-                filterQuality: FilterQuality.medium,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Icon(
-                      Icons.broken_image_outlined,
-                      color: Colors.white54,
-                      size: 44,
-                    ),
-                  );
-                },
+            child: RepaintBoundary(
+              child: Center(
+                child: Image.memory(
+                  frame,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.none,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white54,
+                        size: 44,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           );

@@ -1,4 +1,22 @@
+use std::time::{Duration, Instant};
+use std::sync::Arc;
+
 use anyhow::Result;
+use bytes::Bytes;
+use image::codecs::jpeg::JpegEncoder;
+use image::RgbaImage;
+use scrap::{Capturer, Display};
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tracing::{error, info, trace, warn};
+
+pub struct RawFrame {
+    pub bgra: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
+    pub seq: u64,
+}
 
 pub struct Frame {
     pub data: Vec<u8>,
@@ -13,6 +31,159 @@ pub enum PixelFormat {
     Rgba,
     Bgra,
     Nv12,
+}
+
+const TARGET_FPS: u64 = 60;
+const DEFAULT_JPEG_QUALITY: u8 = 40;
+
+pub fn start_capture_pipeline(tx: Arc<broadcast::Sender<Bytes>>) -> Result<()> {
+    let rt = tokio::runtime::Runtime::new()?;
+
+    let quality = std::env::var("ROTASCOPE_QUALITY")
+        .ok()
+        .and_then(|v| v.parse::<u8>().ok())
+        .unwrap_or(DEFAULT_JPEG_QUALITY);
+
+    info!("Capture pipeline: target {TARGET_FPS}fps, JPEG quality {quality}");
+    rt.block_on(pipeline(tx, quality))
+}
+
+async fn pipeline(tx: Arc<broadcast::Sender<Bytes>>, quality: u8) -> Result<()> {
+    let frame_duration = Duration::from_micros(1_000_000 / TARGET_FPS as u64);
+    let (mut capturer, width, height) = select_monitor()?;
+
+    let (raw_tx, mut raw_rx) = mpsc::channel::<RawFrame>(2);
+    let mut seq: u64 = 0;
+
+    let encode_tx = tx.clone();
+    let _encode_task = tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Handle::current();
+        while let Some(mut raw) = rt.block_on(raw_rx.recv()) {
+            let start = Instant::now();
+
+            bgra_to_rgba_inplace(&mut raw.bgra);
+
+            let image = match RgbaImage::from_raw(
+                raw.width as u32,
+                raw.height as u32,
+                raw.bgra,
+            ) {
+                Some(img) => img,
+                None => {
+                    error!("failed to create RgbaImage from raw data");
+                    continue;
+                }
+            };
+
+            let mut jpeg_bytes = Vec::with_capacity(100_000);
+            let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, quality);
+            if let Err(e) = encoder.encode_image(&image) {
+                error!("JPEG encode error: {e:?}");
+                continue;
+            }
+
+            let elapsed = start.elapsed();
+            trace!("encode frame {} took {}ms", raw.seq, elapsed.as_millis());
+
+            let _ = encode_tx.send(Bytes::from(jpeg_bytes));
+        }
+    });
+
+    loop {
+        if tx.receiver_count() == 0 && raw_tx.capacity() > 0 {
+            sleep(Duration::from_millis(250)).await;
+            continue;
+        }
+
+        let start = Instant::now();
+
+        match capture_raw(&mut capturer, width, height) {
+            Some(mut raw) => {
+                seq += 1;
+                raw.seq = seq;
+                if raw_tx.try_send(raw).is_err() {
+                    trace!("encode backlog, dropping frame {}", seq);
+                }
+            }
+            None => {
+                sleep(Duration::from_millis(1)).await;
+                continue;
+            }
+        }
+
+        let elapsed = start.elapsed();
+        if elapsed < frame_duration {
+            sleep(frame_duration - elapsed).await;
+        }
+    }
+}
+
+fn bgra_to_rgba_inplace(data: &mut [u8]) {
+    for pixel in data.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+}
+
+fn select_monitor() -> Result<(Capturer, usize, usize)> {
+    let selected_index = std::env::var("ROTASCOPE_DISPLAY_INDEX")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let displays = Display::all()
+        .map_err(|e| anyhow::anyhow!("failed to enumerate displays: {e}"))?;
+
+    if displays.is_empty() {
+        anyhow::bail!("no displays found");
+    }
+
+    let count = displays.len();
+    let index = if selected_index >= count {
+        warn!(
+            "ROTASCOPE_DISPLAY_INDEX={selected_index} out of range; using display 0 of {count}"
+        );
+        0
+    } else {
+        selected_index
+    };
+
+    let display = displays
+        .into_iter()
+        .nth(index)
+        .ok_or_else(|| anyhow::anyhow!("selected display not found"))?;
+
+    let width = display.width();
+    let height = display.height();
+    let capturer = Capturer::new(display)
+        .map_err(|e| anyhow::anyhow!("failed to create capturer: {e}"))?;
+
+    info!("Capturing display index {index}: {width}x{height}");
+    Ok((capturer, width, height))
+}
+
+fn capture_raw(capturer: &mut Capturer, width: usize, height: usize) -> Option<RawFrame> {
+    use std::io::ErrorKind::WouldBlock;
+
+    loop {
+        match capturer.frame() {
+            Ok(buffer) => {
+                return Some(RawFrame {
+                    bgra: buffer.to_vec(),
+                    width,
+                    height,
+                    seq: 0,
+                });
+            }
+            Err(ref e) if e.kind() == WouldBlock => {
+                std::thread::sleep(Duration::from_millis(1));
+                continue;
+            }
+            Err(e) => {
+                error!("capture failed: {e:?}");
+                return None;
+            }
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -37,45 +208,39 @@ pub struct ScreenCapturer {
 impl ScreenCapturer {
     #[cfg(windows)]
     pub fn new(display_idx: usize, fps: u32) -> Result<Self> {
-        use std::mem;
         use windows::core::Interface;
+        use windows::Win32::Foundation::HMODULE;
         use windows::Win32::Graphics::{
-            Direct3D::D3D_DRIVER_TYPE_HARDWARE,
+            Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_FEATURE_LEVEL},
             Direct3D11::{
-                D3D11CreateDevice, D3D11_CPU_ACCESS_READ, D3D11_USAGE_STAGING,
-                D3D11_FENCE_FLAG_NONE,
+                D3D11CreateDevice, D3D11_CREATE_DEVICE_FLAG, D3D11_SDK_VERSION, ID3D11DeviceContext,
             },
-            Dxgi::{
-                IDXGIAdapter, IDXGIFactory1, IDXGIOutput, IDXGIOutput1,
-                DXGI_OUTPUT_DESC,
-            },
-            Dxgi::Common::DXGI_SAMPLE_DESC,
+            Dxgi::{IDXGIAdapter, IDXGIDevice, IDXGIFactory1, IDXGIOutput, IDXGIOutput1},
         };
         use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
         unsafe {
-            CoInitializeEx(None, COINIT_MULTITHREADED).ok();
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
             let mut device: Option<windows::Win32::Graphics::Direct3D11::ID3D11Device> = None;
-            let mut context: Option<windows::Win32::Graphics::Direct3D11::ID3D11DeviceContext> = None;
+            let mut context: Option<ID3D11DeviceContext> = None;
 
             D3D11CreateDevice(
-                None,
+                None as Option<&IDXGIAdapter>,
                 D3D_DRIVER_TYPE_HARDWARE,
-                None,
-                0,
-                None,
-                0,
-                7,
-                Some(&mut device),
-                Some(&mut context),
-                None,
+                HMODULE::default(),
+                D3D11_CREATE_DEVICE_FLAG(0),
+                None as Option<&[D3D_FEATURE_LEVEL]>,
+                D3D11_SDK_VERSION,
+                Some(&mut device as *mut Option<windows::Win32::Graphics::Direct3D11::ID3D11Device>),
+                None as Option<*mut D3D_FEATURE_LEVEL>,
+                Some(&mut context as *mut Option<ID3D11DeviceContext>),
             )?;
 
             let device = device.unwrap();
             let context = context.unwrap();
 
-            let dxgi_device: windows::Win32::Graphics::Dxgi::IDXGIDevice = device.cast()?;
+            let dxgi_device: IDXGIDevice = device.cast()?;
             let adapter: IDXGIAdapter = dxgi_device.GetAdapter()?;
             let _factory: IDXGIFactory1 = adapter.GetParent()?;
 
@@ -84,8 +249,7 @@ impl ScreenCapturer {
 
             let dupl = output1.DuplicateOutput(&device)?;
 
-            let mut output_desc: DXGI_OUTPUT_DESC = mem::zeroed();
-            output.GetDesc(&mut output_desc)?;
+            let output_desc = output.GetDesc()?;
             let width = output_desc.DesktopCoordinates.right - output_desc.DesktopCoordinates.left;
             let height = output_desc.DesktopCoordinates.bottom - output_desc.DesktopCoordinates.top;
 
@@ -106,33 +270,26 @@ impl ScreenCapturer {
         anyhow::bail!("Screen capture is only supported on Windows in this version");
     }
 
-}
-    }
-
     #[cfg(windows)]
     pub fn capture(&mut self) -> Result<Option<Frame>> {
         use windows::core::Interface;
         use windows::Win32::Graphics::{
             Direct3D11::{
                 D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_MAPPED_SUBRESOURCE,
-                D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING, D3D11_FENCE_FLAG_NONE,
+                D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
             },
             Dxgi::{
-                DXGI_OUTDUPL_FRAME_INFO, DXGI_ERROR_ACCESS_LOST, DXGI_ERROR_WAIT_TIMEOUT,
+                IDXGIResource, DXGI_OUTDUPL_FRAME_INFO, DXGI_ERROR_ACCESS_LOST,
+                DXGI_ERROR_WAIT_TIMEOUT,
             },
             Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
         };
 
-        let frame_time = Duration::from_secs_f64(1.0 / self.fps as f64);
-        if self.last_frame.elapsed() < frame_time {
-            return Ok(None);
-        }
-
         unsafe {
             let mut frame_info: DXGI_OUTDUPL_FRAME_INFO = std::mem::zeroed();
-            let mut desktop_resource: Option<windows::Win32::Graphics::Direct3D11::ID3D11Texture2D> = None;
+            let mut desktop_resource: Option<IDXGIResource> = None;
 
-            match self.dupl.AcquireNextFrame(16, &mut frame_info, &mut desktop_resource) {
+            match self.dupl.AcquireNextFrame(8, &mut frame_info, &mut desktop_resource) {
                 Ok(()) => {}
                 Err(e) if e.code() == DXGI_ERROR_WAIT_TIMEOUT => return Ok(None),
                 Err(e) => {
@@ -145,6 +302,8 @@ impl ScreenCapturer {
             }
 
             let resource = desktop_resource.unwrap();
+            let desktop_texture: windows::Win32::Graphics::Direct3D11::ID3D11Texture2D =
+                resource.cast()?;
 
             let desc = D3D11_TEXTURE2D_DESC {
                 Width: self.width,
@@ -157,34 +316,26 @@ impl ScreenCapturer {
                     Quality: 0,
                 },
                 Usage: D3D11_USAGE_STAGING,
-                BindFlags: D3D11_FENCE_FLAG_NONE.0 as u32,
+                BindFlags: 0,
                 CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
                 MiscFlags: 0,
             };
 
-            let mut staging_texture: Option<windows::Win32::Graphics::Direct3D11::ID3D11Texture2D> = None;
+            let mut staging_texture: Option<
+                windows::Win32::Graphics::Direct3D11::ID3D11Texture2D,
+            > = None;
             self.device.CreateTexture2D(&desc, None, Some(&mut staging_texture))?;
             let staging_texture = staging_texture.unwrap();
 
-            self.context.CopyResource(
-                &staging_texture.cast()?,
-                &resource.cast()?,
-            );
+            self.context.CopyResource(&staging_texture, &desktop_texture);
 
             let mut mapped: D3D11_MAPPED_SUBRESOURCE = std::mem::zeroed();
-            self.context.Map(
-                &staging_texture.cast()?,
-                0,
-                D3D11_MAP_READ,
-                0,
-                Some(&mut mapped),
-            )?;
+            self.context
+                .Map(&staging_texture, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
 
             let row_pitch = mapped.RowPitch as usize;
-            let src_data = std::slice::from_raw_parts(
-                mapped.pData as *const u8,
-                row_pitch * self.height as usize,
-            );
+            let src_data =
+                std::slice::from_raw_parts(mapped.pData as *const u8, row_pitch * self.height as usize);
 
             let mut frame_data = Vec::with_capacity((self.width * self.height * 4) as usize);
             for y in 0..self.height as usize {
@@ -193,7 +344,7 @@ impl ScreenCapturer {
                 frame_data.extend_from_slice(&src_data[start..end]);
             }
 
-            self.context.Unmap(&staging_texture.cast()?, 0);
+            self.context.Unmap(&staging_texture, 0);
             self.dupl.ReleaseFrame()?;
 
             self.last_frame = Instant::now();

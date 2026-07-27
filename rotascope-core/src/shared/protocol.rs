@@ -15,7 +15,16 @@ pub enum ClientMessage {
     SwitchDisplay {
         direction: SwitchDirection,
     },
+    TouchEvent(TouchEvent),
     Heartbeat,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum TouchEvent {
+    Move { x: f32, y: f32 },
+    Down { x: f32, y: f32 },
+    Up { x: f32, y: f32 },
+    Scroll { delta_x: f32, delta_y: f32 },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,9 +61,9 @@ impl ToMsg for ServerMessage {
 
 // 序列化辅助函数
 pub fn serialize_message<T: Serialize>(msg: &T) -> Result<Vec<u8>> {
-    serde_json::to_vec(msg).map_err(|e|e.to_string())
+    Ok(serde_json::to_vec(msg)?)
 }
 
 pub fn deserialize_message<T: for<'a> Deserialize<'a>>(data: &[u8]) -> Result<T> {
-   serde_json::from_slice(data).map_err(|e|e.to_string())
+    Ok(serde_json::from_slice(data)?)
 }

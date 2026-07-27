@@ -1,11 +1,25 @@
 #pragma once
-#define FRAME_WIDTH 1920
-#define FRAME_HEIGHT 1080
-#define BYTES_PER_PIXEL 4
 
+#include <ntddk.h>
+#include <d3dkmthk.h>
 
-struct SharedFrame
-{
-volatile LONG frameIndex;
-BYTE pixels[FRAME_WIDTH * FRAME_HEIGHT * BYTES_PER_PIXEL];
-};
+#define SHARED_FRAME_BUFFER_SIZE (1920 * 1080 * 4)
+#define ROTASCOPE_DEVICE_NAME L"\\Device\\RotaScope"
+#define ROTASCOPE_SYMLINK     L"\\DosDevices\\RotaScope"
+
+typedef struct _SHARED_FRAME {
+    volatile LONG   FrameReady;
+    volatile LONG   Width;
+    volatile LONG   Height;
+    volatile LONG   Stride;
+    UCHAR           Buffer[SHARED_FRAME_BUFFER_SIZE];
+} SHARED_FRAME;
+
+#define IOCTL_ROTASCOPE_GET_FRAME \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_ROTASCOPE_WAIT_FRAME \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_ACCESS)
+
+#define IOCTL_ROTASCOPE_SET_RESOLUTION \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_WRITE_ACCESS)

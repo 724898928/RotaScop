@@ -1,59 +1,121 @@
-#include "Shared.h"
 #include "Driver.h"
-#include <iddcx.h>
 
-extern SharedFrame* g_SharedFrame;
+NTSTATUS
+EvtSwapChainSetDevice(
+    IDDCX_SWAPCHAIN SwapChainObject,
+    const IDARG_IN_SETDEVICE* pInArgs
+)
+{
+    UNREFERENCED_PARAMETER(SwapChainObject);
+    UNREFERENCED_PARAMETER(pInArgs);
 
-void EvtAssignSwapChain(
-    IDDCX_SWAPCHAIN SwapChain,
-    const IDDCX_SWAPCHAIN_INFO* Info
-) {
-    UNREFERENCED_PARAMETER(SwapChain);
-    UNREFERENCED_PARAMETER(Info);
-
-    DbgPrint("[RotaScope] Swap chain assigned\n");
-
-    // Initialize the swap chain for frame presentation
+    return STATUS_SUCCESS;
 }
 
-void EvtReleaseSwapChain(IDDCX_SWAPCHAIN SwapChain)
+NTSTATUS
+EvtSwapChainSetSwapChain(
+    IDDCX_SWAPCHAIN SwapChainObject,
+    const IDARG_IN_SETSWAPCHAIN* pInArgs
+)
 {
-    UNREFERENCED_PARAMETER(SwapChain);
-    DbgPrint("[RotaScope] Swap chain released\n");
-}
+    DEVICE_CONTEXT* deviceCtx;
 
-void EvtPresent(IDDCX_SWAPCHAIN SwapChain)
-{
-    UNREFERENCED_PARAMETER(SwapChain);
-    // Present notification - frame should be ready
-}
+    deviceCtx = GetGlobalDeviceContext();
 
-void PresentFrame(IDDCX_SWAPCHAIN hSwapChain)
-{
-    if (!g_SharedFrame) {
-        DbgPrint("[RotaScope] No shared frame buffer available\n");
-        return;
+    if (deviceCtx != NULL)
+    {
+        deviceCtx->SwapChain = pInArgs->SwapChain;
     }
 
-    IDDCX_SWAPCHAIN_BUFFER buffer = {};
-    NTSTATUS status = IddCxSwapChainGetBuffer(hSwapChain, &buffer);
+    UNREFERENCED_PARAMETER(SwapChainObject);
 
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("[RotaScope] Failed to get swap chain buffer: 0x%X\n", status);
-        return;
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+EvtSwapChainReleaseSwapChain(
+    IDDCX_SWAPCHAIN SwapChainObject
+)
+{
+    DEVICE_CONTEXT* deviceCtx;
+
+    deviceCtx = GetGlobalDeviceContext();
+
+    if (deviceCtx != NULL)
+    {
+        deviceCtx->SwapChain = NULL;
     }
 
-    // Copy frame data from shared memory to swap chain buffer
-    BYTE* dst = (BYTE*)buffer.pSurface;
-    if (dst) {
-        RtlCopyMemory(
-            dst,
-            g_SharedFrame->pixels,
-            FRAME_WIDTH * FRAME_HEIGHT * BYTES_PER_PIXEL
+    UNREFERENCED_PARAMETER(SwapChainObject);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+EvtSwapChainProcessFrame(
+    IDDCX_SWAPCHAIN SwapChainObject,
+    const IDARG_IN_PROCESSFRAME* pInArgs
+)
+{
+    DEVICE_CONTEXT* deviceCtx;
+    IDARG_IN_RELEASEANDACQUIREBUFFER acquireIn = { 0 };
+    IDARG_OUT_RELEASEANDACQUIREBUFFER acquireOut = { 0 };
+    NTSTATUS status;
+
+    deviceCtx = GetGlobalDeviceContext();
+
+    if (deviceCtx == NULL)
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    UNREFERENCED_PARAMETER(SwapChainObject);
+    UNREFERENCED_PARAMETER(pInArgs);
+
+    acquireIn.Size = sizeof(acquireIn);
+
+    status = IddCxSwapChainReleaseAndAcquireBuffer(
+        deviceCtx->SwapChain,
+        &acquireIn,
+        &acquireOut
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    {
+        IDDCX_SWAPCHAIN_BUFFER_INFO bufferInfo = { 0 };
+        SIZE_T infoSize;
+
+        bufferInfo.Size = sizeof(bufferInfo);
+
+        status = IddCxSwapChainGetBufferInfo(
+            deviceCtx->SwapChain,
+            acquireOut.BufferIndex,
+            &bufferInfo,
+            sizeof(bufferInfo),
+            &infoSize
         );
+
+        if (NT_SUCCESS(status) &&
+            bufferInfo.pSurface != NULL &&
+            bufferInfo.FrameBufferSize > 0)
+        {
+            SetSharedFrame(
+                deviceCtx,
+                (const BYTE*)bufferInfo.pSurface,
+                bufferInfo.FrameBufferWidth,
+                bufferInfo.FrameBufferHeight,
+                bufferInfo.FrameBufferStride
+            );
+        }
     }
 
-    // Release buffer and present
-    IddCxSwapChainReleaseBuffer(hSwapChain, &buffer);
-    IddCxSwapChainPresent(hSwapChain);
+    status = IddCxSwapChainFinishedProcessingFrame(
+        deviceCtx->SwapChain
+    );
+
+    return status;
 }

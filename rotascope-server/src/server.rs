@@ -3,9 +3,10 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use log::{error, info, warn};
-use serde_json::Value;
 use tokio::sync::broadcast;
 use warp::Filter;
+
+use rotascope_core::shared::protocol::{ClientMessage, SwitchDirection};
 
 pub fn ws_route(
     tx: Arc<broadcast::Sender<Bytes>>,
@@ -69,38 +70,29 @@ pub async fn client_connection(ws: warp::ws::WebSocket, tx: Arc<broadcast::Sende
 }
 
 fn handle_client_command(text: &str) {
-    match serde_json::from_str::<Value>(text) {
-        Ok(json) => {
-            match json["type"].as_str() {
-                Some("SensorData") => {
-                    let rx = json["rotation_x"].as_f64().unwrap_or(0.0);
-                    let ry = json["rotation_y"].as_f64().unwrap_or(0.0);
-                    let rz = json["rotation_z"].as_f64().unwrap_or(0.0);
-                    info!("sensor data: x={rx:.2}, y={ry:.2}, z={rz:.2}");
+    match serde_json::from_str::<ClientMessage>(text) {
+        Ok(message) => {
+            match message {
+                ClientMessage::SensorData { rotation_x, rotation_y, rotation_z } => {
+                    info!("sensor data: x={rotation_x:.2}, y={rotation_y:.2}, z={rotation_z:.2}");
                 }
-                Some("SwitchDisplay") => {
-                    let dir = json["direction"].as_str().unwrap_or("next");
-                    info!("switch display: {dir}");
+                ClientMessage::SwitchDisplay { direction } => {
+                    let dir_str = match direction {
+                        SwitchDirection::Next => "next",
+                        SwitchDirection::Previous => "previous",
+                    };
+                    info!("switch display: {dir_str}");
                 }
-                Some("TouchEvent") => {
-                    let event = json["event"].as_str().unwrap_or("unknown");
-                    let x = json["x"].as_f64().unwrap_or(0.0);
-                    let y = json["y"].as_f64().unwrap_or(0.0);
-                    info!("touch event: {event} at ({x:.3}, {y:.3})");
+                ClientMessage::TouchEvent(touch) => {
+                    info!("touch event: {touch:?}");
                 }
-                Some("Heartbeat") => {
+                ClientMessage::Heartbeat => {
                     // Silent
-                }
-                Some(other) => {
-                    info!("unknown command type: {other}");
-                }
-                None => {
-                    info!("client command: {text}");
                 }
             }
         }
-        Err(_) => {
-            info!("client command: {text}");
+        Err(e) => {
+            warn!("failed to parse client message: {e}");
         }
     }
 }

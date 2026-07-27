@@ -1,3 +1,5 @@
+pub mod jpeg;
+
 use anyhow::Result;
 use openh264::encoder::{BitRate, Encoder, EncoderConfig, FrameRate};
 use openh264::formats::YUVBuffer;

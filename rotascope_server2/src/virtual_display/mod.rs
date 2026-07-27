@@ -1,5 +1,7 @@
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::info;
+#[cfg(not(windows))]
+use tracing::warn;
 
 pub struct VirtualDisplay {
     pub width: u32,

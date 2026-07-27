@@ -26,6 +26,11 @@ class ConnectionService extends ChangeNotifier {
   double _fps = 0;
   int _reconnectAttempts = 0;
 
+  static const Duration _frameThrottle = Duration(milliseconds: 16); // ~60fps max rebuild
+  DateTime _lastNotifyTime = DateTime.now().subtract(const Duration(seconds: 1));
+  bool _notifyPending = false;
+  bool _flushScheduled = false;
+
   bool _autoReconnect = true;
   bool _manualDisconnect = false;
   Timer? _fpsTimer;
@@ -164,11 +169,35 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
+  void _throttledNotify() {
+    final now = DateTime.now();
+    if (now.difference(_lastNotifyTime) >= _frameThrottle) {
+      _lastNotifyTime = now;
+      _notifyPending = false;
+      notifyListeners();
+    } else {
+      _notifyPending = true;
+      if (!_flushScheduled) {
+        _flushScheduled = true;
+        Future.microtask(_flushPendingNotify);
+      }
+    }
+  }
+
+  void _flushPendingNotify() {
+    _flushScheduled = false;
+    if (_notifyPending) {
+      _lastNotifyTime = DateTime.now();
+      _notifyPending = false;
+      notifyListeners();
+    }
+  }
+
   void _handleBinaryMessage(Uint8List message) {
     if (_isImageData(message)) {
       _currentFrame = message;
       _framesThisSecond++;
-      notifyListeners();
+      _throttledNotify();
       return;
     }
 

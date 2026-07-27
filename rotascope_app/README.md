@@ -1,28 +1,75 @@
 # rotascope_app
 
-A new Flutter project.
+Flutter Android 显示端，用于将 Android 手机作为电脑的 USB 扩展显示器使用。
 
-## Getting Started
+## 功能
 
-This project is a starting point for a Flutter application.
+- **全屏显示电脑画面**：通过 WebSocket 接收 JPEG 视频流，15 FPS
+- **触摸回传**：手机触摸事件发送到电脑，支持鼠标模拟（v2）
+- **陀螺仪切屏**：旋转手机切换显示器
+- **自动重连**：指数退避重连机制
+- **HUD 显示**：FPS、显示器编号、旋转角度
 
-A few resources to get you started if this is your first Flutter project:
+## 快速开始
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 前置条件
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Flutter SDK
+- Android 设备或模拟器
+- ADB 工具
 
+### 运行
 
+```bash
+# 连接 Android 设备
+adb devices
 
+# 启动应用
+flutter run -d <android-device-id>
+```
 
-如何将手机作为PC端的显示器显示出两个多个显示器效果,通过旋转手机来切换显示器,请使用rust的ws = "0.9.2"插件开发服务端,flutter做移动端开发语言来开发此项目
+### 连接配置
 
-):14745600
-send_msg2client message data.len():14745600
-send_msg2client message data.len():47897579
-[2025-11-27T08:42:26Z ERROR rotascope_server::server] Error sending binary frame: IO error: An existing connection was forcibly closed by the remote host. (os error 10054)
-send_msg2client send_task recv message 
+应用默认连接 `ws://127.0.0.1:8083/ws`（通过 `adb reverse` 映射到电脑）。
 
+在电脑端执行：
+```bash
+adb reverse tcp:8083 tcp:8083
+```
+
+## 项目结构
+
+```
+lib/
+├── main.dart              # 入口：Wakelock、横屏、沉浸模式
+├── app.dart               # Material3 应用壳 + Provider 注入
+├── model/
+│   └── video_frame.dart   # 视频帧数据模型
+├── screens/
+│   └── remote_screen.dart # 主界面：HUD + 显示控件 + Sensor 事件
+├── services/
+│   ├── connection_service.dart  # WebSocket 连接、帧接收、自动重连
+│   └── sensor_service.dart      # 陀螺仪监听、旋转切屏
+└── widgets/
+    ├── display_view.dart        # JPEG 图片渲染 + 触摸手势
+    ├── display_hud.dart         # HUD（FPS、显示器编号、旋转角度）
+    └── connection_panel.dart    # 连接面板（地址输入、状态指示）
+```
+
+## 技术栈
+
+- Flutter 3.x
+- Dart
+- web_socket_channel
+- sensors_plus
+- provider
+
+## 开发状态
+
+- [x] JPEG 流接收与渲染
+- [x] 触摸事件回传
+- [x] 陀螺仪切屏
+- [x] 自动重连
+- [x] HUD 显示
+- [ ] H.264 硬解码支持（v2）
+- [ ] QUIC 传输支持（v2）

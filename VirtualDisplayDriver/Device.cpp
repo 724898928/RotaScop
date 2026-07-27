@@ -1,53 +1,116 @@
 #include "Driver.h"
-#include "Shared.h"
-#include <iddcx.h>
 
-// Supported monitor modes
-IDDCX_MONITOR_MODE g_Modes[] = {
-    { {1920, 1080}, 120, IDDCX_MONITOR_MODE_ORIGIN_DESKTOP },
-    { {1280, 720}, 120, IDDCX_MONITOR_MODE_ORIGIN_DESKTOP },
-    { {1920, 1080}, 60, IDDCX_MONITOR_MODE_ORIGIN_DESKTOP },
-    { {1280, 720}, 60, IDDCX_MONITOR_MODE_ORIGIN_DESKTOP },
-};
-
-void CreateMonitor(IDDCX_ADAPTER Adapter)
+VOID
+EvtIoDeviceControl(
+    _In_ WDFQUEUE Queue,
+    _In_ WDFREQUEST Request,
+    _In_ size_t OutputBufferLength,
+    _In_ size_t InputBufferLength,
+    _In_ ULONG IoControlCode
+)
 {
-    DbgPrint("[RotaScope] Creating virtual monitor\n");
+    DEVICE_CONTEXT* deviceCtx;
+    NTSTATUS status = STATUS_SUCCESS;
 
-    IDDCX_MONITOR_INFO info = {};
-    info.Size = sizeof(info);
-    info.MonitorDescription.Type = IDDCX_MONITOR_DESCRIPTION_TYPE_GENERIC;
-    info.MonitorDescription.DataSize = 0;
-    info.MonitorDescription.Data = nullptr;
+    deviceCtx = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
-    // Set monitor modes
-    IDDCX_MONITOR_MODE modes[ARRAYSIZE(g_Modes)];
-    for (UINT i = 0; i < ARRAYSIZE(g_Modes); i++) {
-        modes[i] = g_Modes[i];
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
+
+    switch (IoControlCode)
+    {
+        case IOCTL_ROTASCOPE_GET_FRAME:
+        {
+            SHARED_FRAME* frameBuffer;
+            size_t bufSize;
+
+            status = WdfRequestRetrieveOutputBuffer(Request, sizeof(SHARED_FRAME), &frameBuffer, &bufSize);
+
+            if (NT_SUCCESS(status) && bufSize >= sizeof(SHARED_FRAME))
+            {
+                KIRQL oldIrql;
+
+                KeAcquireSpinLock(&deviceCtx->FrameLock, &oldIrql);
+
+                if (deviceCtx->SharedFrame != NULL)
+                {
+                    RtlCopyMemory(frameBuffer, deviceCtx->SharedFrame, sizeof(SHARED_FRAME));
+                }
+
+                KeReleaseSpinLock(&deviceCtx->FrameLock, oldIrql);
+            }
+
+            break;
+        }
+
+        case IOCTL_ROTASCOPE_WAIT_FRAME:
+        {
+            if (deviceCtx->FrameEventObject != NULL)
+            {
+                KeWaitForSingleObject(
+                    deviceCtx->FrameEventObject,
+                    Executive,
+                    KernelMode,
+                    FALSE,
+                    NULL
+                );
+            }
+
+            break;
+        }
+
+        case IOCTL_ROTASCOPE_SET_RESOLUTION:
+        {
+            break;
+        }
+
+        default:
+            status = STATUS_INVALID_DEVICE_REQUEST;
+            break;
     }
 
-    IDDCX_TARGET_MODE targetMode = {};
-    targetMode.Size = sizeof(targetMode);
-    targetMode.MonitorModeArray = modes;
-    targetMode.MonitorModeCount = ARRAYSIZE(g_Modes);
+    WdfRequestComplete(Request, status);
+}
 
-    // Create monitor with IDD
-    IDDCX_MONITOR monitor = nullptr;
-    NTSTATUS status = IddCxMonitorCreate(
-        Adapter,
-        &info,
-        &targetMode,
-        nullptr,
-        &monitor
-    );
+VOID
+SetSharedFrame(
+    _In_ DEVICE_CONTEXT* DeviceCtx,
+    _In_reads_bytes_(BufferSize) const BYTE* Buffer,
+    _In_ ULONG Width,
+    _In_ ULONG Height,
+    _In_ ULONG Stride
+)
+{
+    SHARED_FRAME* frame;
+    ULONG copyBytes;
 
-    if (NT_SUCCESS(status)) {
-        DbgPrint("[RotaScope] Virtual monitor created successfully\n");
+    KeAcquireSpinLockAtDpcLevel(&DeviceCtx->FrameLock);
 
-        // Assign default modes
-        IDDCX_MONITOR_MODE defaultMode = modes[0];
-        IddCxMonitorAssignSwapChain(monitor, nullptr, nullptr);
-    } else {
-        DbgPrint("[RotaScope] Failed to create virtual monitor: 0x%X\n", status);
+    if (DeviceCtx->SharedFrame == NULL)
+    {
+        DeviceCtx->SharedFrame = (SHARED_FRAME*)
+            ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(SHARED_FRAME), 'FRSR');
     }
+
+    frame = DeviceCtx->SharedFrame;
+
+    if (frame != NULL)
+    {
+        copyBytes = (Stride * Height < SHARED_FRAME_BUFFER_SIZE) ?
+                     Stride * Height : SHARED_FRAME_BUFFER_SIZE;
+
+        RtlCopyMemory(frame->Buffer, Buffer, copyBytes);
+
+        frame->Width = Width;
+        frame->Height = Height;
+        frame->Stride = Stride;
+        InterlockedExchange(&frame->FrameReady, 1);
+
+        if (DeviceCtx->FrameEventObject != NULL)
+        {
+            KeSetEvent(DeviceCtx->FrameEventObject, IO_NO_INCREMENT, FALSE);
+        }
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceCtx->FrameLock);
 }

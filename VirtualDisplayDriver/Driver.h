@@ -1,30 +1,75 @@
 #pragma once
+
 #include <ntddk.h>
 #include <dispmprt.h>
 #include <iddcx.h>
+#include <wdm.h>
+#include <wdf.h>
+#include "Shared.h"
 
-// Driver entry and unload
-extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
-extern "C" VOID DriverUnload(PDRIVER_OBJECT DriverObject);
+typedef struct _DEVICE_CONTEXT {
+    WDFDEVICE                   WdfDevice;
+    IDDCX_ADAPTER               AdapterHandle;
+    IDDCX_MONITOR               MonitorHandle;
+    IDDCX_SWAPCHAIN             SwapChain;
+    WDFQUEUE                    IoQueue;
+    SHARED_FRAME*               SharedFrame;
+    HANDLE                      FrameEventHandle;
+    PKEVENT                     FrameEventObject;
+    KSPIN_LOCK                  FrameLock;
+} DEVICE_CONTEXT;
 
-// IDD initialization
-extern "C" NTSTATUS InitIDD(PDRIVER_OBJECT DriverObject);
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext)
 
-// Frame submission from user-mode
-extern "C" VOID SubmitFrame(PVOID buffer, SIZE_T size);
+DRIVER_INITIALIZE DriverEntry;
 
-// Adapter creation
-NTSTATUS CreateVirtualAdapter(PDRIVER_OBJECT DriverObject);
+NTSTATUS
+DriverEntry(
+    PDRIVER_OBJECT  DriverObject,
+    PUNICODE_STRING RegistryPath
+);
 
-// Monitor and device callbacks
-void CreateMonitor(IDDCX_ADAPTER Adapter);
-NTSTATUS IddDeviceIoControl(PVOID Context, PVOID InputBuffer, ULONG InputBufferLength,
-                             PVOID OutputBuffer, ULONG OutputBufferLength, PULONG ReturnedData);
+EVT_WDF_DRIVER_DEVICE_ADD EvtDriverDeviceAdd;
 
-// Swap chain callbacks
-void EvtAssignSwapChain(IDDCX_SWAPCHAIN SwapChain, const IDDCX_SWAPCHAIN_INFO* Info);
-void EvtReleaseSwapChain(IDDCX_SWAPCHAIN SwapChain);
-void EvtPresent(IDDCX_SWAPCHAIN SwapChain);
+EVT_IDD_CX_ADAPTER_INIT_FINISHED EvtAdapterInitFinished;
 
-// Global shared frame buffer
-extern struct SharedFrame* g_SharedFrame;
+EVT_IDD_CX_PARSE_MONITOR_DESCRIPTION EvtParseMonitorDescription;
+
+EVT_IDD_CX_MONITOR_GET_DEFAULT_DESCRIPTION_MONITOR_MODE
+EvtMonitorGetDefaultDescriptionMode;
+
+EVT_IDD_CX_MONITOR_ASSIGN_SWAPCHAIN EvtMonitorAssignSwapChain;
+
+EVT_IDD_CX_MONITOR_UNASSIGN_SWAPCHAIN EvtMonitorUnassignSwapChain;
+
+EVT_IDD_CX_SWAPCHAIN_SET_DEVICE EvtSwapChainSetDevice;
+
+EVT_IDD_CX_SWAPCHAIN_SET_SWAPCHAIN EvtSwapChainSetSwapChain;
+
+EVT_IDD_CX_SWAPCHAIN_RELEASE_SWAPCHAIN EvtSwapChainReleaseSwapChain;
+
+EVT_IDD_CX_SWAPCHAIN_PROCESS_FRAME EvtSwapChainProcessFrame;
+
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL EvtIoDeviceControl;
+
+NTSTATUS
+FrameInitialize(
+    _In_ DEVICE_CONTEXT* DeviceCtx
+);
+
+VOID
+FrameCleanup(
+    _In_ DEVICE_CONTEXT* DeviceCtx
+);
+
+DEVICE_CONTEXT*
+GetGlobalDeviceContext(VOID);
+
+VOID
+SetSharedFrame(
+    _In_ DEVICE_CONTEXT* DeviceCtx,
+    _In_reads_bytes_(BufferSize) const BYTE* Buffer,
+    _In_ ULONG Width,
+    _In_ ULONG Height,
+    _In_ ULONG Stride
+);

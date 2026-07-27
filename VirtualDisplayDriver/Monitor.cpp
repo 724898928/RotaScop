@@ -1,28 +1,70 @@
 #include "Driver.h"
-#include <iddcx.h>
 
-extern "C"
-NTSTATUS CreateVirtualMonitor()
+NTSTATUS
+EvtMonitorAssignSwapChain(
+    IDDCX_MONITOR MonitorObject,
+    const IDARG_IN_SETSWAPCHAIN* pInArgs,
+    IDARG_OUT_SETSWAPCHAIN* pOutArgs
+)
 {
-    DbgPrint("[RotaScope] Creating Virtual Monitor\n");
+    DEVICE_CONTEXT* deviceCtx;
+    IDARG_IN_SWAPCHAINSETDEVICE setDevice = { 0 };
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(MonitorObject);
+
+    deviceCtx = GetGlobalDeviceContext();
+
+    if (deviceCtx == NULL)
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    deviceCtx->SwapChain = pInArgs->SwapChain;
+
+    setDevice.Size = sizeof(setDevice);
+    setDevice.pEvtIddCxSwapChainSetDevice = EvtSwapChainSetDevice;
+    setDevice.pEvtIddCxSwapChainSetSwapChain = EvtSwapChainSetSwapChain;
+    setDevice.pEvtIddCxSwapChainReleaseSwapChain = EvtSwapChainReleaseSwapChain;
+    setDevice.pEvtIddCxSwapChainProcessFrame = EvtSwapChainProcessFrame;
+
+    status = IddCxSwapChainSetDevice(
+        deviceCtx->SwapChain,
+        &setDevice
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        deviceCtx->SwapChain = NULL;
+        return status;
+    }
+
+    pOutArgs->Result = IDDCX_SETSWAPCHAIN_RESULT_OK;
+
+    DbgPrint("RotaScope: SwapChain assigned with callbacks\n");
 
     return STATUS_SUCCESS;
 }
 
-// Monitor arrival callback
-void EvtMonitorArrival(IDDCX_ADAPTER Adapter, IDDCX_MONITOR Monitor)
+NTSTATUS
+EvtMonitorUnassignSwapChain(
+    IDDCX_MONITOR MonitorObject,
+    const IDARG_OUT_RELEASESWAPCHAIN* pOutArgs
+)
 {
-    DbgPrint("[RotaScope] Monitor arrival detected\n");
+    DEVICE_CONTEXT* deviceCtx;
 
-    // Assign swap chain for the monitor
-    IDDCX_SWAPCHAIN swapChain = nullptr;
-    NTSTATUS status = IddCxMonitorAssignSwapChain(
-        Monitor,
-        nullptr,
-        &swapChain
-    );
+    UNREFERENCED_PARAMETER(MonitorObject);
+    UNREFERENCED_PARAMETER(pOutArgs);
 
-    if (NT_SUCCESS(status)) {
-        DbgPrint("[RotaScope] Swap chain assigned to monitor\n");
+    deviceCtx = GetGlobalDeviceContext();
+
+    if (deviceCtx != NULL)
+    {
+        deviceCtx->SwapChain = NULL;
     }
+
+    DbgPrint("RotaScope: SwapChain unassigned\n");
+
+    return STATUS_SUCCESS;
 }

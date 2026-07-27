@@ -1,48 +1,23 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualDisplayDriver)
 
-set(CMAKE_SYSTEM_NAME Windows)
-set(CMAKE_SYSTEM_VERSION 10.0)
+project(VirtualDisplayDriver LANGUAGES CXX)
 
-# WDK paths - adjust as needed for your environment
-if(NOT DEFINED WDK_PATH)
-    if(DEFINED ENV{WDK_PATH})
-        set(WDK_PATH $ENV{WDK_PATH})
-    elseif(EXISTS "C:/Program Files (x86)/Windows Kits/10")
-        set(WDK_PATH "C:/Program Files (x86)/Windows Kits/10")
-    else()
-        message(FATAL_ERROR "WDK_PATH not found. Please set WDK_PATH or install Windows WDK.")
-    endif()
-endif()
+set(CMAKE_MSVC_KERNEL_MODE TRUE)
 
-# Find the latest WDK version
-file(GLOB WDK_VERSIONS RELATIVE ${WDK_PATH}/Include
-    "${WDK_PATH}/Include/10.0.*")
-list(SORT WDK_VERSIONS)
-list(REVERSE WDK_VERSIONS)
-if(WDK_VERSIONS)
-    list(GET WDK_VERSIONS 0 WDK_VERSION)
-else()
-    message(FATAL_ERROR "No WDK version found in ${WDK_PATH}/Include/10.0.*")
-endif()
+set(WDK_PATH "C:/Program Files (x86)/Windows Kits/10" CACHE PATH "Path to WDK root")
+set(WDK_VERSION "10.0.22621.0" CACHE STRING "WDK version to use")
 
-message(STATUS "Using WDK version: ${WDK_VERSION}")
-message(STATUS "WDK Path: ${WDK_PATH}")
+set(WDK_INC_DIR "${WDK_PATH}/Include/${WDK_VERSION}")
+set(WDK_LIB_DIR "${WDK_PATH}/Lib/${WDK_VERSION}/km/x64")
 
-# WDK include directories
-set(WDK_INCLUDES
-    ${WDK_PATH}/Include/${WDK_VERSION}/km
-    ${WDK_PATH}/Include/${WDK_VERSION}/km/crt
-    ${WDK_PATH}/Include/${WDK_VERSION}/shared
-    ${WDK_PATH}/Include/${WDK_VERSION}/um
+include_directories(
+    ${WDK_INC_DIR}/km
+    ${WDK_INC_DIR}/shared
+    ${WDK_INC_DIR}/um
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# WDK library directories
-set(WDK_LIB_DIR
-    ${WDK_PATH}/Lib/${WDK_VERSION}/km/x64
-)
-
-add_library(VirtualDisplayDriver SHARED
+add_executable(VirtualDisplayDriver
     Driver.cpp
     Adapter.cpp
     Device.cpp
@@ -51,36 +26,22 @@ add_library(VirtualDisplayDriver SHARED
     Frame.cpp
 )
 
-target_include_directories(VirtualDisplayDriver PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${WDK_INCLUDES}
-)
+if(MSVC)
+    set_target_properties(VirtualDisplayDriver PROPERTIES
+        SUFFIX ".sys"
+        LINK_FLAGS "/SUBSYSTEM:NATIVE /DRIVER"
+    )
+endif()
 
-target_compile_definitions(VirtualDisplayDriver PRIVATE
-    _WIN32_WINNT=0x0A00
-    _X86_
-    _AMD64_
-    DBG=1
-)
-
-target_compile_options(VirtualDisplayDriver PRIVATE
-    /W4
-    /WX
-    /kernel
-    /GS
-)
-
-target_link_directories(VirtualDisplayDriver PRIVATE ${WDK_LIB_DIR})
 target_link_libraries(VirtualDisplayDriver PRIVATE
-    ntoskrnl.lib
-    hal.lib
-    wdmsec.lib
-    ndis.lib
+    ${WDK_LIB_DIR}/ntoskrnl.lib
+    ${WDK_LIB_DIR}/hal.lib
+    ${WDK_LIB_DIR}/dxgkrnl.lib
+    ${WDK_LIB_DIR}/wmilib.lib
 )
 
-# Output as .sys file
-set_target_properties(VirtualDisplayDriver PROPERTIES
-    SUFFIX ".sys"
-    PREFIX ""
-    COMPILE_FLAGS "/EHs-c- /GR-"
-)
+option(BUILD_COMPANION "Build the user-mode companion service" ON)
+
+if(BUILD_COMPANION)
+    add_subdirectory(companion)
+endif()

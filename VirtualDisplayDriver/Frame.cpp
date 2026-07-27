@@ -1,31 +1,72 @@
 #include "Driver.h"
-#include "Shared.h"
 
-extern SharedFrame* g_SharedFrame;
-
-extern "C"
-void SubmitFrame(PVOID buffer, SIZE_T size)
+NTSTATUS
+FrameInitialize(
+    _In_ DEVICE_CONTEXT* DeviceCtx
+)
 {
-    if (!g_SharedFrame || !buffer) {
-        DbgPrint("[RotaScope] SubmitFrame: invalid parameters\n");
-        return;
+    SHARED_FRAME* frame;
+    UNICODE_STRING eventName;
+    HANDLE hEvent;
+    PKEVENT pEvent;
+
+    frame = (SHARED_FRAME*)ExAllocatePool2(
+        POOL_FLAG_NON_PAGED,
+        sizeof(SHARED_FRAME),
+        'FRSR'
+    );
+
+    if (frame == NULL)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    SIZE_T frameSize = FRAME_WIDTH * FRAME_HEIGHT * BYTES_PER_PIXEL;
-    SIZE_T copySize = (size < frameSize) ? size : frameSize;
+    RtlZeroMemory(frame, sizeof(SHARED_FRAME));
 
-    // Copy frame data into shared memory
-    RtlCopyMemory(g_SharedFrame->pixels, buffer, copySize);
-    InterlockedIncrement(&g_SharedFrame->frameIndex);
+    DeviceCtx->SharedFrame = frame;
 
-    DbgPrint("[RotaScope] Frame submitted: %llu bytes (frame %ld)\n", copySize, g_SharedFrame->frameIndex);
+    RtlInitUnicodeString(&eventName, L"\\BaseNamedObjects\\RotaScopeFrameEvent");
 
-    // TODO:
-    // 1. Signal user-mode service that a new frame is available
-    // 2. User-mode service reads from shared memory
-    // 3. Encodes with NVENC or OpenH264
-    // 4. Sends over USB to Android device
+    pEvent = IoCreateSynchronizationEvent(
+        &eventName,
+        &hEvent
+    );
 
-    // For MVP, this copies to the swap chain directly
-    // In production, this would trigger the encoding + USB pipeline
+    if (pEvent == NULL)
+    {
+        ExFreePool(frame);
+        DeviceCtx->SharedFrame = NULL;
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    DeviceCtx->FrameEventObject = pEvent;
+    DeviceCtx->FrameEventHandle = hEvent;
+
+    KeClearEvent(pEvent);
+
+    DbgPrint("RotaScope: Frame buffer initialized\n");
+
+    return STATUS_SUCCESS;
+}
+
+VOID
+FrameCleanup(
+    _In_ DEVICE_CONTEXT* DeviceCtx
+)
+{
+    if (DeviceCtx->SharedFrame != NULL)
+    {
+        ExFreePool(DeviceCtx->SharedFrame);
+        DeviceCtx->SharedFrame = NULL;
+    }
+
+    if (DeviceCtx->FrameEventHandle != NULL)
+    {
+        ZwClose(DeviceCtx->FrameEventHandle);
+        DeviceCtx->FrameEventHandle = NULL;
+    }
+
+    DeviceCtx->FrameEventObject = NULL;
+
+    DbgPrint("RotaScope: Frame buffer cleaned up\n");
 }

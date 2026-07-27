@@ -10,8 +10,8 @@ CatalogFile=VirtualDisplay.cat
 %MfgName%=Standard,NTamd64
 
 [Standard.NTamd64]
-%DeviceName%=Install,Root\VirtualDisplay
-%DeviceName%=Install,SWD\Generic\VirtualDisplay
+%DeviceName%=Install,Root\RotaScope_VirtualDisplay
+%DeviceName%=Install,SWD\Generic\RotaScope_VirtualDisplay
 
 [Install]
 CopyFiles=DriverCopyFiles
@@ -22,6 +22,9 @@ AddService=VirtualDisplay,0x00000002,Service_Inst
 
 [DriverCopyFiles]
 VirtualDisplay.sys
+
+[DestinationDirs]
+DriverCopyFiles=12
 
 [DriverAddReg]
 HKR,,HardwareInformation.MemorySize,0x00010003,0x20000000
@@ -39,8 +42,6 @@ ServiceBinary=%12%\VirtualDisplay.sys
 MfgName="RotaScope"
 DeviceName="RotaScope Virtual Display Adapter"
 ServiceName="RotaScope Virtual Display"
-
-; Description strings
 RotaScope.DeviceDesc = "RotaScope Virtual Display Adapter"
 RotaScope.SVCDesc = "RotaScope Virtual Display Driver"
 RotaScope.Provider = "RotaScope"
