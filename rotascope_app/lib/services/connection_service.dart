@@ -279,8 +279,11 @@ class ConnectionService extends ChangeNotifier {
         data[5] == 0x0A &&
         data[6] == 0x1A &&
         data[7] == 0x0A;
+    final isH264 = data.length >= 4 &&
+        data[0] == 0x00 && data[1] == 0x00 &&
+        ((data[2] == 0x00 && data[3] == 0x01) || (data[2] == 0x01));
 
-    return isJpeg || isPng;
+    return isJpeg || isPng || isH264;
   }
 
   void _handleError(Object error) {

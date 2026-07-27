@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/connection_service.dart';
+import '../services/video_pipeline_service.dart';
 
 class DisplayView extends StatefulWidget {
   const DisplayView({super.key});
@@ -23,7 +24,8 @@ class _DisplayViewState extends State<DisplayView> {
 
   @override
   Widget build(BuildContext context) {
-    final frame = context.select<ConnectionService, Uint8List?>(
+    final pipeline = context.watch<VideoPipelineService>();
+    final frame = pipeline.currentFrame ?? context.select<ConnectionService, Uint8List?>(
       (service) => service.currentFrame,
     );
 
@@ -50,12 +52,6 @@ class _DisplayViewState extends State<DisplayView> {
             onPanUpdate: (details) =>
                 _sendTouchEvent('move', details.localPosition, size),
             onPanEnd: (_) => _sendTouchEvent('up', Offset.zero, size),
-            onTapUp: (details) {
-              _sendTouchEvent('down', details.localPosition, size);
-              Future.delayed(const Duration(milliseconds: 50), () {
-                _sendTouchEvent('up', Offset.zero, size);
-              });
-            },
             child: RepaintBoundary(
               child: Center(
                 child: Image.memory(

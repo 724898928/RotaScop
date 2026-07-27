@@ -186,6 +186,59 @@ fn capture_raw(capturer: &mut Capturer, width: usize, height: usize) -> Option<R
     }
 }
 
+pub fn start_h264_pipeline(tx: Arc<broadcast::Sender<Bytes>>) -> Result<()> {
+    use crate::encoder::VideoEncoder;
+
+    let display_idx = std::env::var("ROTASCOPE_DISPLAY_INDEX")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let mut capturer = ScreenCapturer::new(display_idx, 60)?;
+    let (width, height) = capturer.resolution();
+    let mut encoder = VideoEncoder::new(width, height, 85)?;
+
+    info!("H.264 pipeline started: {width}x{height} @ 60fps");
+    let frame_interval = std::time::Duration::from_micros(1_000_000 / 60);
+
+    loop {
+        let start = std::time::Instant::now();
+
+        if tx.receiver_count() == 0 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            continue;
+        }
+
+        match capturer.capture() {
+            Ok(Some(frame)) => {
+                match encoder.encode_frame(&frame) {
+                    Ok(encoded) => {
+                        let _ = tx.send(Bytes::from(encoded));
+                    }
+                    Err(e) => {
+                        trace!("H.264 encode error: {e:?}");
+                    }
+                }
+            }
+            Ok(None) => {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                continue;
+            }
+            Err(e) => {
+                error!("H.264 capture error: {e:?}");
+                break;
+            }
+        }
+
+        let elapsed = start.elapsed();
+        if elapsed < frame_interval {
+            std::thread::sleep(frame_interval - elapsed);
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(windows)]
 pub struct ScreenCapturer {
     device: windows::Win32::Graphics::Direct3D11::ID3D11Device,

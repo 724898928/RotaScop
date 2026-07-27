@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
-use crate::Result;
 
 pub trait ToMsg{
-    fn to_msg<T: Serialize>(&self, msg: &T) -> Result<Vec<u8>>;
+    fn to_msg<T: Serialize>(&self, msg: &T) -> anyhow::Result<Vec<u8>>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,16 +53,16 @@ pub enum ServerMessage {
 }
 
 impl ToMsg for ServerMessage {
-    fn to_msg<T: Serialize>(&self,msg: &T)-> Result<Vec<u8>> {
+    fn to_msg<T: Serialize>(&self,msg: &T)-> anyhow::Result<Vec<u8>> {
         serialize_message(msg)
     }
 }
 
 // 序列化辅助函数
-pub fn serialize_message<T: Serialize>(msg: &T) -> Result<Vec<u8>> {
+pub fn serialize_message<T: Serialize>(msg: &T) -> anyhow::Result<Vec<u8>> {
     Ok(serde_json::to_vec(msg)?)
 }
 
-pub fn deserialize_message<T: for<'a> Deserialize<'a>>(data: &[u8]) -> Result<T> {
+pub fn deserialize_message<T: for<'a> Deserialize<'a>>(data: &[u8]) -> anyhow::Result<T> {
     Ok(serde_json::from_slice(data)?)
 }

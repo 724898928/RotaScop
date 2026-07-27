@@ -17,21 +17,20 @@ use tracing::{error, info, warn};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// WebSocket 服务器监听地址
     #[arg(short, long, default_value = "0.0.0.0:8083")]
     ws_addr: String,
 
-    /// QUIC 服务器监听地址（可选）
     #[arg(short = 'q', long)]
     quic_addr: Option<String>,
 
-    /// JPEG 编码质量 (1-100, 越低编码越快帧率越高)
     #[arg(short = 'Q', long, default_value = "40")]
     quality: u8,
 
-    /// 显示器索引（0 = 主显示器）
     #[arg(short = 'd', long, default_value = "0")]
     display: usize,
+
+    #[arg(short = 'c', long, default_value = "jpeg")]
+    codec: String,
 }
 
 #[tokio::main]
@@ -43,12 +42,18 @@ async fn main() -> Result<()> {
     let q = args.quality.clamp(10, 100);
     std::env::set_var("ROTASCOPE_QUALITY", q.to_string());
     std::env::set_var("ROTASCOPE_DISPLAY_INDEX", args.display.to_string());
+    std::env::set_var("ROTASCOPE_CODEC", args.codec.clone());
 
-    info!("RotaScope v2 — target 60fps, JPEG quality {q}, display {}", args.display);
+    info!(
+        "RotaScope v2 — target 60fps, JPEG quality {q}, display {}, codec {}",
+        args.display, args.codec
+    );
     info!("WebSocket endpoint: ws://{}/ws", args.ws_addr);
 
-    let (tx, _rx) = broadcast::channel::<bytes::Bytes>(256);
-    let tx = Arc::new(tx);
+    let (jpeg_tx, _) = broadcast::channel::<bytes::Bytes>(256);
+    let (h264_tx, _) = broadcast::channel::<bytes::Bytes>(64);
+    let jpeg_tx = Arc::new(jpeg_tx);
+    let h264_tx = Arc::new(h264_tx);
 
     #[cfg(windows)]
     {
@@ -60,16 +65,24 @@ async fn main() -> Result<()> {
         }
     }
 
-    let capture_tx = tx.clone();
+    let cap_jpeg = jpeg_tx.clone();
     std::thread::spawn(move || {
-        if let Err(e) = capture::start_capture_pipeline(capture_tx) {
-            error!("Capture pipeline stopped: {e:?}");
+        if let Err(e) = capture::start_capture_pipeline(cap_jpeg) {
+            error!("JPEG capture pipeline stopped: {e:?}");
         }
     });
 
-    let ws_tx = tx.clone();
+    let cap_h264 = h264_tx.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = capture::start_h264_pipeline(cap_h264) {
+            error!("H.264 capture pipeline stopped: {e:?}");
+        }
+    });
+
+    let ws_jpeg = jpeg_tx.clone();
+    let ws_h264 = h264_tx.clone();
     let ws_handle = tokio::spawn(async move {
-        if let Err(e) = ws_server::run(ws_tx).await {
+        if let Err(e) = ws_server::run(ws_jpeg, Some(ws_h264)).await {
             error!("WebSocket server stopped: {e:?}");
         }
     });
@@ -78,9 +91,10 @@ async fn main() -> Result<()> {
         let addr = quic_addr
             .parse()
             .expect("Invalid QUIC listen address format");
+        let qh264 = h264_tx.clone();
         info!("QUIC server listening on {}", quic_addr);
         Some(tokio::spawn(async move {
-            if let Err(e) = quic_server::run(addr).await {
+            if let Err(e) = quic_server::run(addr, qh264).await {
                 error!("QUIC server stopped: {e:?}");
             }
         }))

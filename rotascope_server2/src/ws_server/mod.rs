@@ -14,38 +14,71 @@ use crate::input_injector;
 
 const DEFAULT_PORT: u16 = 8083;
 
-pub async fn run(capture_tx: Arc<broadcast::Sender<Bytes>>) -> Result<()> {
+pub async fn run(
+    jpeg_tx: Arc<broadcast::Sender<Bytes>>,
+    h264_tx: Option<Arc<broadcast::Sender<Bytes>>>,
+) -> Result<()> {
     let addr = ([0, 0, 0, 0], DEFAULT_PORT);
     info!("WebSocket server listening on ws://0.0.0.0:{}/ws", DEFAULT_PORT);
-    warp::serve(ws_route(capture_tx).with(warp::cors().allow_any_origin()))
+    warp::serve(ws_route(jpeg_tx, h264_tx).with(warp::cors().allow_any_origin()))
         .run(addr)
         .await;
     Ok(())
 }
 
 pub fn ws_route(
-    tx: Arc<broadcast::Sender<Bytes>>,
+    jpeg_tx: Arc<broadcast::Sender<Bytes>>,
+    h264_tx: Option<Arc<broadcast::Sender<Bytes>>>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let tx_filter = warp::any().map(move || tx.clone());
+    let jpeg_filter = warp::any().map(move || jpeg_tx.clone());
+    let h264_filter = warp::any().map(move || h264_tx.clone());
     warp::path("ws")
         .and(warp::ws())
-        .and(tx_filter)
-        .map(|ws: warp::ws::Ws, tx: Arc<broadcast::Sender<Bytes>>| {
-            ws.on_upgrade(move |socket| client_connection(socket, tx))
-        })
+        .and(jpeg_filter)
+        .and(h264_filter)
+        .and(warp::path::full())
+        .map(
+            |ws: warp::ws::Ws,
+             jpeg: Arc<broadcast::Sender<Bytes>>,
+             h264: Option<Arc<broadcast::Sender<Bytes>>>,
+             path: warp::path::FullPath| {
+                let codec = path
+                    .as_str()
+                    .split('?')
+                    .nth(1)
+                    .unwrap_or("")
+                    .split('&')
+                    .find_map(|p| p.strip_prefix("codec="))
+                    .unwrap_or("jpeg")
+                    .to_string();
+                ws.on_upgrade(move |socket| client_connection(socket, jpeg, h264, codec))
+            },
+        )
 }
 
-async fn client_connection(ws: warp::ws::WebSocket, tx: Arc<broadcast::Sender<Bytes>>) {
-    info!("WebSocket client connected");
+async fn client_connection(
+    ws: warp::ws::WebSocket,
+    jpeg_tx: Arc<broadcast::Sender<Bytes>>,
+    h264_tx: Option<Arc<broadcast::Sender<Bytes>>>,
+    codec: String,
+) {
+    info!("WebSocket client connected (codec: {codec})");
     let (mut ws_tx, mut ws_rx) = ws.split();
-    let mut rx = tx.subscribe();
 
-    // Send initial DisplayConfig
+    let use_h264 = codec == "h264" && h264_tx.is_some();
+    let rx: broadcast::Receiver<Bytes> = if use_h264 {
+        info!("Client requested H.264 stream");
+        h264_tx.as_ref().unwrap().subscribe()
+    } else {
+        jpeg_tx.subscribe()
+    };
+
     let config = serde_json::json!({
         "type": "DisplayConfig",
         "total_displays": 1,
         "current_display": 0,
-        "resolutions": [[1920, 1080]]
+        "resolutions": [[1920, 1080]],
+        "codec": if use_h264 { "h264" } else { "jpeg" }
     });
     if let Err(e) = ws_tx.send(warp::ws::Message::text(config.to_string())).await {
         warn!("Failed to send DisplayConfig: {e:?}");
@@ -53,6 +86,7 @@ async fn client_connection(ws: warp::ws::WebSocket, tx: Arc<broadcast::Sender<By
     }
 
     let send_task = tokio::spawn(async move {
+        let mut rx = rx;
         loop {
             tokio::select! {
                 result = rx.recv() => {
@@ -63,9 +97,7 @@ async fn client_connection(ws: warp::ws::WebSocket, tx: Arc<broadcast::Sender<By
                                 break;
                             }
                         }
-                        Err(broadcast::error::RecvError::Lagged(_count)) => {
-                            // fast encoder outruns slow network; skip silently
-                        }
+                        Err(broadcast::error::RecvError::Lagged(_count)) => {}
                         Err(broadcast::error::RecvError::Closed) => break,
                     }
                 }
@@ -114,12 +146,9 @@ fn handle_client_text(text: &str) {
             ClientMessage::TouchEvent(event) => {
                 handle_touch_event(&event);
             }
-            ClientMessage::Heartbeat => {
-                // Silent
-            }
+            ClientMessage::Heartbeat => {}
         },
         Err(_) => {
-            // Might be a raw JSON that doesn't match enum, try parsing as generic
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(text) {
                 match val["type"].as_str() {
                     Some("SensorData") | Some("SwitchDisplay") | Some("Heartbeat") => {}

@@ -22,6 +22,9 @@ class SensorService extends ChangeNotifier {
   double get rotationZ => _rotationZ;
   bool get sensorsActive => _sensorsActive;
 
+  DateTime _lastSensorNotify = DateTime.now().subtract(const Duration(seconds: 1));
+  static const Duration _sensorThrottle = Duration(milliseconds: 16);
+
   void startSensors() {
     if (_sensorsActive) return;
 
@@ -31,7 +34,11 @@ class SensorService extends ChangeNotifier {
       _rotationZ = event.z;
 
       _handleRotation();
-      notifyListeners();
+      final now = DateTime.now();
+      if (now.difference(_lastSensorNotify) >= _sensorThrottle) {
+        _lastSensorNotify = now;
+        notifyListeners();
+      }
     });
 
     _sensorsActive = true;

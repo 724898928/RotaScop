@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$ServerDir = Join-Path $Root "rotascope-server"
+$ServerDir = Join-Path $Root "rotascope_server2"
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     throw "adb was not found. Install Android platform-tools and add adb.exe to PATH."

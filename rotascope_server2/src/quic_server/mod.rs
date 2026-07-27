@@ -1,32 +1,30 @@
-use anyhow::Result;
-use quinn::{Connection, Endpoint, ServerConfig, TransportConfig};
-use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use anyhow::Result;
+use bytes::Bytes;
+use quinn::{Connection, Endpoint, ServerConfig, TransportConfig};
+use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
-use crate::capture::ScreenCapturer;
-use crate::encoder::VideoEncoder;
-
-pub async fn run(addr: SocketAddr) -> Result<()> {
+pub async fn run(
+    addr: std::net::SocketAddr,
+    h264_tx: Arc<broadcast::Sender<Bytes>>,
+) -> Result<()> {
     let (server_config, _server_cert) = configure_quic_server()?;
 
     let endpoint = Endpoint::server(server_config, addr)?;
     info!("QUIC server listening on {}", addr);
 
-    let capturer = ScreenCapturer::new(0, 60)?;
-    let (width, height) = capturer.resolution();
-    let _encoder = VideoEncoder::new(width, height, 85)?;
-
     while let Some(conn) = endpoint.accept().await {
         match conn.await {
             Ok(connection) => {
-                info!("Client connected: {}", connection.remote_address());
-                let (w, h) = capturer.resolution();
-                tokio::spawn(handle_client(connection, (w, h)));
+                info!("QUIC client connected: {}", connection.remote_address());
+                let rx = h264_tx.subscribe();
+                tokio::spawn(handle_client(connection, rx));
             }
             Err(e) => {
-                warn!("Connection rejected: {}", e);
+                warn!("QUIC connection rejected: {}", e);
             }
         }
     }
@@ -40,7 +38,8 @@ fn configure_quic_server() -> Result<(ServerConfig, Vec<u8>)> {
 
     let mut cert_params = CertificateParams::default();
     cert_params.not_before = SystemTime::now().into();
-    cert_params.not_after = (SystemTime::now() + Duration::from_secs(365 * 24 * 60 * 60)).into();
+    cert_params.not_after =
+        (SystemTime::now() + Duration::from_secs(365 * 24 * 60 * 60)).into();
     cert_params.distinguished_name = rcgen::DistinguishedName::new();
     cert_params.subject_alt_names = vec![
         rcgen::SanType::DnsName("localhost".try_into().unwrap()),
@@ -73,54 +72,46 @@ fn configure_quic_server() -> Result<(ServerConfig, Vec<u8>)> {
     Ok((server_config, cert_der))
 }
 
-async fn handle_client(connection: Connection, resolution: (u32, u32)) -> Result<()> {
+async fn handle_client(
+    connection: Connection,
+    mut rx: broadcast::Receiver<Bytes>,
+) -> Result<()> {
     let video_info = serde_json::json!({
         "type": "video_info",
-        "width": resolution.0,
-        "height": resolution.1,
         "codec": "h264",
         "fps": 60
     });
 
-    let mut video_stream = connection.open_uni().await?;
-    video_stream
+    let mut stream = connection.open_uni().await?;
+    stream
         .write_all(video_info.to_string().as_bytes())
         .await?;
 
-    let mut capturer = ScreenCapturer::new(0, 60)?;
-    let mut encoder = VideoEncoder::new(resolution.0, resolution.1, 85)?;
-
-    let frame_interval = Duration::from_secs_f64(1.0 / 60.0);
-    let mut last_frame = Instant::now();
-
     loop {
-        let elapsed = last_frame.elapsed();
-        if elapsed < frame_interval {
-            tokio::time::sleep(frame_interval - elapsed).await;
-        }
-
-        if let Some(frame) = capturer.capture()? {
-            match encoder.encode_frame(&frame) {
-                Ok(encoded) => {
-                    if let Err(e) = video_stream.write_all(&encoded).await {
-                        error!("Failed to send frame: {}", e);
-                        break;
+        tokio::select! {
+            result = rx.recv() => {
+                match result {
+                    Ok(frame) => {
+                        if let Err(e) = stream.write_all(&frame).await {
+                            error!("QUIC send error: {e:?}");
+                            break;
+                        }
                     }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("QUIC dropped {n} frames");
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
-                Err(e) => {
-                    error!("Failed to encode frame: {}", e);
+            }
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                if connection.close_reason().is_some() {
+                    warn!("QUIC connection closed by peer");
+                    break;
                 }
             }
         }
-
-        last_frame = Instant::now();
-
-        if connection.close_reason().is_some() {
-            warn!("Connection closed by peer");
-            break;
-        }
     }
 
-    info!("Client disconnected");
+    info!("QUIC client disconnected");
     Ok(())
 }

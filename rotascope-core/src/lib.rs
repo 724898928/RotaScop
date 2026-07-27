@@ -1,5 +1,4 @@
 pub mod shared;
-pub use shared::*;
 
 #[cfg(test)]
 mod tests {

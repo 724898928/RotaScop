@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../services/connection_service.dart';
 import '../services/sensor_service.dart';
+import '../services/video_pipeline_service.dart';
 import '../widgets/connection_panel.dart';
 import '../widgets/display_hud.dart';
 import '../widgets/display_view.dart';
@@ -56,6 +57,7 @@ class _RemoteScreenState extends State<RemoteScreen> {
   Widget build(BuildContext context) {
     final connectionService = context.watch<ConnectionService>();
     final sensorService = context.watch<SensorService>();
+    final pipeline = context.watch<VideoPipelineService>();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -86,6 +88,9 @@ class _RemoteScreenState extends State<RemoteScreen> {
                 onPrevious: () => connectionService.switchDisplay('previous'),
                 onNext: () => connectionService.switchDisplay('next'),
                 onDisconnect: () => connectionService.disconnect(),
+                h264Enabled: pipeline.h264Available,
+                onToggleH264: () => pipeline.switchToH264(),
+                codecLabel: pipeline.activeCodec.name.toUpperCase(),
               ),
             ),
         ],
@@ -99,11 +104,17 @@ class _DisplayControls extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onDisconnect,
+    this.h264Enabled = false,
+    this.onToggleH264,
+    this.codecLabel = 'JPEG',
   });
 
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onDisconnect;
+  final bool h264Enabled;
+  final VoidCallback? onToggleH264;
+  final String codecLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +139,14 @@ class _DisplayControls extends StatelessWidget {
               onPressed: onNext,
               icon: const Icon(Icons.arrow_forward),
             ),
+            if (onToggleH264 != null)
+              IconButton(
+                tooltip: h264Enabled ? '切换到 $codecLabel' : '启用 H.264 硬解码',
+                onPressed: onToggleH264,
+                icon: Icon(
+                  h264Enabled ? Icons.videocam : Icons.videocam_outlined,
+                ),
+              ),
             IconButton(
               tooltip: '断开连接',
               onPressed: onDisconnect,

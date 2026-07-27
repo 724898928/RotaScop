@@ -5,7 +5,7 @@ set -euo pipefail
 PORT="${1:-8083}"
 DISPLAY_INDEX="${2:-0}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SERVER_DIR="$ROOT/rotascope-server"
+SERVER_DIR="$ROOT/rotascope_server2"
 
 echo "RotaScope USB display"
 echo "Workspace: $ROOT"
